@@ -251,7 +251,7 @@ export default function App() {
         </div>
         <div className="flex items-center gap-2">
           <div className="hidden lg:flex items-center gap-3 text-[9px] font-extrabold text-zinc-600 uppercase ml-2">
-            <span className="flex items-center gap-1"><Sparkles size={10} className="text-accent/40" />v2.1.0</span>
+            <span className="flex items-center gap-1"><Sparkles size={10} className="text-accent/40" />v2.2.0</span>
             <span>{FEATURE_COUNT} FEATURES</span>
             <span className="text-accent">OPEN CLAW</span>
           </div>
@@ -380,7 +380,7 @@ export default function App() {
         </div>
         <div className="flex items-center gap-3 text-[8px] font-black uppercase tracking-widest">
           <span className="text-zinc-700">{messages.length} msgs</span>
-          <span className="text-accent">v2.1.0</span>
+          <span className="text-accent">v2.2.0</span>
         </div>
       </div>
     </div>

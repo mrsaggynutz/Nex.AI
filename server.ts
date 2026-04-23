@@ -191,6 +191,31 @@ function abortWithTimeout(ms: number): { signal: AbortSignal; cleanup: () => voi
   return { signal: controller.signal, cleanup: () => clearTimeout(timeoutId) };
 }
 
+/* Retry only on rate-limit (429) and server errors (5xx). Fail fast on connection/DNS errors. */
+function isRetryableError(err: any, response?: Response): boolean {
+  if (err) {
+    // Hard failures — no point retrying: DNS, connection refused, network down, timeout
+    if (err.name === 'AbortError') return false;
+    const msg = (err.message || '').toLowerCase();
+    if (msg.includes('econnrefused') || msg.includes('enotfound') || msg.includes('fetch failed')
+      || msg.includes('network') || msg.includes('dns') || msg.includes('socket')
+      || msg.includes('connection') || msg.includes('timeout') || msg.includes('reset')) {
+      return false;
+    }
+    // Unknown errors — retry once
+    return true;
+  }
+  if (response) {
+    // 429 rate-limit → always retry
+    if (response.status === 429) return true;
+    // 5xx server errors → retry
+    if (response.status >= 500 && response.status < 600) return true;
+    // 4xx client errors (except 429) → don't retry
+    return false;
+  }
+  return false;
+}
+
 async function fetchWithRetry(url: string, headers: Record<string, string>, body: string, externalSignal?: AbortSignal): Promise<Response> {
   let lastResponse: Response | null = null;
 
@@ -207,30 +232,44 @@ async function fetchWithRetry(url: string, headers: Record<string, string>, body
       cleanup();
       if (onExternalAbort && externalSignal) externalSignal.removeEventListener('abort', onExternalAbort);
 
-      if (response.status !== 429) return response;
-      lastResponse = response;
-      if (attempt >= MAX_RETRIES) break;
+      if (response.ok) return response;
 
-      const errorText = await response.text().catch(() => '');
-      const retryHeader = response.headers.get('retry-after');
-      const retryMatch = errorText.match(/try again in ([\d.]+)s/i);
-      const retryHeaderSec = retryHeader ? parseFloat(retryHeader) : NaN;
+      // 429 or 5xx → retryable
+      if (isRetryableError(null, response)) {
+        lastResponse = response;
+        if (attempt >= MAX_RETRIES) break;
 
-      let waitMs: number;
-      if (!isNaN(retryHeaderSec)) waitMs = Math.min(retryHeaderSec * 1000 + 1000, BACKOFF_CAP_MS);
-      else if (retryMatch) waitMs = Math.min(parseFloat(retryMatch[1]) * 1000 + 1000, BACKOFF_CAP_MS);
-      else waitMs = Math.min(BACKOFF_BASE_MS * Math.pow(2, attempt), BACKOFF_CAP_MS);
-
-      const jitter = waitMs * (0.8 + Math.random() * 0.4);
-      console.warn(`[429] Rate limited, attempt ${attempt + 1}/${MAX_RETRIES + 1}. Retry in ${(jitter / 1000).toFixed(1)}s`);
-      await delay(jitter);
+        if (response.status === 429) {
+          const errorText = await response.text().catch(() => '');
+          const retryHeader = response.headers.get('retry-after');
+          const retryMatch = errorText.match(/try again in ([\d.]+)s/i);
+          const retryHeaderSec = retryHeader ? parseFloat(retryHeader) : NaN;
+          let waitMs: number;
+          if (!isNaN(retryHeaderSec)) waitMs = Math.min(retryHeaderSec * 1000 + 1000, BACKOFF_CAP_MS);
+          else if (retryMatch) waitMs = Math.min(parseFloat(retryMatch[1]) * 1000 + 1000, BACKOFF_CAP_MS);
+          else waitMs = Math.min(BACKOFF_BASE_MS * Math.pow(2, attempt), BACKOFF_CAP_MS);
+          const jitter = waitMs * (0.8 + Math.random() * 0.4);
+          console.warn(`[429] Rate limited. Retry ${attempt + 1}/${MAX_RETRIES + 1} in ${(jitter / 1000).toFixed(1)}s`);
+          await delay(jitter);
+        } else {
+          // 5xx — shorter backoff
+          const waitMs = Math.min(BACKOFF_BASE_MS * Math.pow(2, attempt), 15000);
+          console.warn(`[${response.status}] Server error. Retry ${attempt + 1}/${MAX_RETRIES + 1} in ${(waitMs / 1000).toFixed(1)}s`);
+          await delay(waitMs);
+        }
+      } else {
+        // 4xx client error (400, 401, 403, etc.) → don't retry
+        return response;
+      }
     } catch (err: any) {
       cleanup();
       if (onExternalAbort && externalSignal) externalSignal.removeEventListener('abort', onExternalAbort);
-      if (err.name === 'AbortError') throw err;
+
+      if (!isRetryableError(err)) throw err;
       if (attempt >= MAX_RETRIES) throw err;
+
       const waitMs = Math.min(BACKOFF_BASE_MS * Math.pow(2, attempt), BACKOFF_CAP_MS);
-      console.warn(`[Network Error] ${err.message}. Retry in ${(waitMs / 1000).toFixed(1)}s`);
+      console.warn(`[Network] ${err.message}. Retry ${attempt + 1}/${MAX_RETRIES + 1} in ${(waitMs / 1000).toFixed(1)}s`);
       await delay(waitMs);
     }
   }
@@ -315,7 +354,7 @@ async function startServer() {
 
   // Health check
   app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", version: "2.1.0", features: FEATURE_COUNT, hostname, uptime: process.uptime() });
+    res.json({ status: "ok", version: "2.2.0", features: FEATURE_COUNT, hostname, uptime: process.uptime() });
   });
 
   // ─── AI Config ───
@@ -392,7 +431,7 @@ async function startServer() {
           const usedFallback = result.reasoningSteps.some((s: string) => s.startsWith('Fallback'));
           res.json({
             content: result.content,
-            toolsUsed: [`Nex.AI v2.1`, config.provider.toUpperCase()],
+            toolsUsed: [`Nex.AI v2.2`, config.provider.toUpperCase()],
             reasoningSteps: result.reasoningSteps,
             model: result.model,
             _fallback: usedFallback,
@@ -400,14 +439,20 @@ async function startServer() {
           });
           return;
         } catch (apiError: any) {
-          console.error(`API call failed: ${apiError.message}`);
-          if (!zaiInstance) return res.status(502).json({ error: `AI API error: ${apiError.message}`, _suggestion: 'Switch model or provider in AI Settings.' });
+          const msg = apiError.message || 'Unknown error';
+          if (msg.includes('fetch failed') || msg.includes('ECONNREFUSED') || msg.includes('ENOTFOUND')) {
+            console.error(`[AI] Network error: ${msg}`);
+            if (!zaiInstance) return res.status(502).json({ error: 'AI provider unreachable. Check your internet connection or try a different provider.', _suggestion: 'Go to AI Settings → Test Connection.' });
+          } else {
+            console.error(`[AI] API error: ${msg}`);
+            if (!zaiInstance) return res.status(502).json({ error: `AI API error: ${msg}`, _suggestion: 'Switch model or provider in AI Settings.' });
+          }
         }
       }
 
       if (zaiInstance) {
         const result = await chatWithZAI(finalMessages, modeHint);
-        res.json({ content: result.content, toolsUsed: ['Nex.AI v2.1', 'Z-AI SDK'], reasoningSteps: result.reasoningSteps, model: result.model });
+        res.json({ content: result.content, toolsUsed: ['Nex.AI v2.2', 'Z-AI SDK'], reasoningSteps: result.reasoningSteps, model: result.model });
         return;
       }
 
@@ -743,24 +788,35 @@ async function startServer() {
     } catch (e: any) { res.json({ error: e.message, branches: [] }); }
   });
 
-  // ─── Static + Vite ───
+  // ─── Static files + SPA fallback ───
 
   app.use(express.static(path.join(__dirname, 'dist'), { index: false }));
 
-  const vite = await createViteServer({
-    root: __dirname,
-    logLevel: 'warn',
-    server: { middlewareMode: true },
-    appType: 'spa',
-    build: { outDir: 'dist', emptyOutDir: true },
-  });
-  app.use(vite.middlewares);
+  if (process.env.NODE_ENV === 'production') {
+    // Production: simple SPA fallback — serve index.html for all non-API routes
+    app.get('*', (_req, res) => {
+      const indexPath = path.join(__dirname, 'dist', 'index.html');
+      if (fs.existsSync(indexPath)) res.sendFile(indexPath);
+      else res.status(404).send('Nex.AI — index.html not found. Run: npm run build');
+    });
+  } else {
+    // Dev: use Vite middleware for HMR
+    const vite = await createViteServer({
+      root: __dirname,
+      logLevel: 'warn',
+      server: { middlewareMode: true },
+      appType: 'spa',
+      build: { outDir: 'dist', emptyOutDir: true },
+    });
+    app.use(vite.middlewares);
+  }
+
+  // Initialize Z-AI SDK (optional — not available on Termux)
+  if (process.env.NODE_ENV !== 'production') await initZAI();
 
   app.listen(PORT, () => {
-    console.log(`\n  Nex.AI v2.1 → http://localhost:${PORT}\n  ${FEATURE_COUNT} features loaded\n  Open Claw Agent active\n`);
+    console.log(`\n  Nex.AI v2.2 → http://localhost:${PORT}\n  ${FEATURE_COUNT} features loaded\n  Open Claw Agent active\n`);
   });
-
-  await initZAI();
 }
 
 startServer().catch(console.error);
