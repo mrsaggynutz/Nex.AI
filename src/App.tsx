@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { AxiomTerminal } from './components/AxiomTerminal';
 import { AxiomChat } from './components/AxiomChat';
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+}
 import { ToolLauncher } from './components/ToolLauncher';
 import { SystemMonitor } from './components/SystemMonitor';
 import { PasswordGenerator } from './components/PasswordGenerator';
@@ -19,6 +24,7 @@ import { FileBrowser } from './components/FileBrowser';
 import { CodeEditor } from './components/CodeEditor';
 import { GitPanel } from './components/GitPanel';
 import { LivePreview } from './components/LivePreview';
+import { NotificationProvider } from './components/NotificationProvider';
 import { ChatMessage, ExecuteFn } from './types';
 import { cn } from './lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -60,7 +66,7 @@ const ARSENAL_SUBPANELS: PanelMode[] = [
 const FEATURE_COUNT = 36;
 
 /* PWA Install Prompt */
-let deferredPrompt: any = null;
+let deferredPrompt: BeforeInstallPromptEvent | null = null;
 
 export default function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -85,7 +91,7 @@ export default function App() {
 
     const handler = (e: Event) => {
       e.preventDefault();
-      deferredPrompt = e;
+      deferredPrompt = e as BeforeInstallPromptEvent;
       setShowInstallBanner(true);
     };
     window.addEventListener('beforeinstallprompt', handler);
@@ -151,34 +157,39 @@ export default function App() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
-      if (data.timedOut) return 'TIMEOUT: Command took too long.';
-      if (data.error && !data.stdout && !data.stderr) return `ERROR: ${data.error}`;
-      const output = data.stdout || data.stderr || 'Done.';
-      if (data.wasPreprocessed) return `[AUTO -y] ${data.processedCommand}\n${output}`;
+      const data = await res.json().catch(() => null);
+      if (!res.ok) return `ERROR: ${data?.error || res.statusText || 'Backend error'}`;
+      if (data?.timedOut) return 'TIMEOUT: Command took too long.';
+      if (data?.error && !data.stdout && !data.stderr) return `ERROR: ${data.error}`;
+      const output = typeof data?.stdout === 'string' ? data.stdout : data?.stderr || 'Done.';
+      if (data?.wasPreprocessed) return `[AUTO -y] ${data.processedCommand}\n${output}`;
       return output;
-    } catch { return "ERROR: Cannot reach backend."; }
+    } catch (error: any) {
+      return `ERROR: ${error?.message || 'Cannot reach backend.'}`;
+    }
   };
 
   const handleSendMessage = async (input: string) => {
     const userMessage: ChatMessage = { role: 'user', content: input };
-    setMessages(prev => [...prev, userMessage]);
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
     setIsThinking(true);
     try {
-      const allMessages = [...messages, userMessage];
       const res = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: allMessages.map(m => ({ role: m.role, content: m.content })) }),
+        body: JSON.stringify({ messages: updatedMessages.map(m => ({ role: m.role, content: m.content })) }),
       });
       const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      if (!res.ok || data.error) {
+        throw new Error(data?.error || 'AI server returned an error.');
+      }
       const assistantMessage: ChatMessage = {
-        role: 'assistant', content: data.content || "No response generated.",
+        role: 'assistant', content: data.content || 'No response generated.',
         reasoningSteps: data.reasoningSteps, toolsUsed: data.toolsUsed,
       };
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error: any) {
-      setMessages(prev => [...prev, { role: 'assistant', content: `SYSTEM ERROR: ${error.message || "Connection failed."}` }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: `SYSTEM ERROR: ${error.message || 'Connection failed.'}` }]);
     } finally { setIsThinking(false); }
   };
 
@@ -232,7 +243,8 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen w-screen bg-bg text-white flex flex-col overflow-hidden selection:bg-accent/30 font-display">
+    <NotificationProvider>
+      <div className="h-screen w-screen bg-bg text-white flex flex-col overflow-hidden selection:bg-accent/30 font-display">
       {/* Top Bar */}
       <div className="bg-surface/80 backdrop-blur-xl border-b border-zinc-900/50 flex items-center justify-between px-3 md:px-5 shrink-0 safe-top">
         <div className="flex items-center gap-2 md:gap-3">
@@ -384,5 +396,6 @@ export default function App() {
         </div>
       </div>
     </div>
+    </NotificationProvider>
   );
 }

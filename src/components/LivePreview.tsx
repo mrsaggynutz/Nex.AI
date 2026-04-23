@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNotification } from './NotificationProvider';
 import {
   Globe, Save, Download, Upload, RotateCcw, Maximize2, Minimize2
 } from 'lucide-react';
@@ -65,6 +66,7 @@ export const LivePreview: React.FC<LivePreviewProps> = ({ onExecute, onRunInTerm
   const [showImport, setShowImport] = useState(false);
   const [importPath, setImportPath] = useState('');
   const [loading, setLoading] = useState(false);
+  const notify = useNotification();
   const [splitPos, setSplitPos] = useState(50);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
@@ -120,6 +122,7 @@ ${jsBlock}
     }
   };
 
+
   const saveToFile = async () => {
     if (!filePath) {
       setFilePath('/tmp/preview.html');
@@ -134,13 +137,13 @@ ${jsBlock}
         body: JSON.stringify({ filePath: targetPath, content }),
       });
       const data = await res.json();
-      if (data.success) {
-        // brief visual feedback
+      if (!data.success) {
+        notify(data.error || 'Save failed', 'error');
       } else {
-        alert(data.error || 'Save failed');
+        notify('Preview saved successfully.', 'success');
       }
     } catch {
-      alert('Save failed');
+      notify('Save failed', 'error');
     } finally {
       setLoading(false);
     }
@@ -157,7 +160,7 @@ ${jsBlock}
       });
       const data = await res.json();
       if (data.error) {
-        alert(data.error);
+        notify(data.error, 'error');
         return;
       }
       const content = data.content;
@@ -173,7 +176,7 @@ ${jsBlock}
       setImportPath('');
       setShowImport(false);
     } catch {
-      alert('Failed to load file');
+      notify('Failed to load file', 'error');
     } finally {
       setLoading(false);
     }
