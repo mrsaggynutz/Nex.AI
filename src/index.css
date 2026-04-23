@@ -2,10 +2,13 @@
 
 @theme {
   --color-bg: #000000;
-  --color-surface: #0D0D0D;
+  --color-surface: #0A0A0A;
   --color-accent: #00ff41;
   --color-neon-green: #00ff41;
-  --color-text-dim: #555555;
+  --color-neon-red: #ff0040;
+  --color-neon-blue: #0088ff;
+  --color-neon-amber: #ffaa00;
+  --color-text-dim: #444444;
   --font-display: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   --font-mono: 'Courier New', 'Fira Code', Courier, monospace;
 }
@@ -19,9 +22,9 @@
 }
 
 @layer utilities {
-  .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+  .custom-scrollbar::-webkit-scrollbar { width: 3px; height: 3px; }
   .custom-scrollbar::-webkit-scrollbar-track { @apply bg-transparent; }
-  .custom-scrollbar::-webkit-scrollbar-thumb { @apply bg-zinc-800 rounded-full hover:bg-zinc-700; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { @apply bg-zinc-800/60 rounded-full hover:bg-zinc-700; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   .safe-top { padding-top: env(safe-area-inset-top, 0px); }
@@ -30,18 +33,76 @@
   .markdown-body { @apply space-y-3; }
   .markdown-body h1 { @apply text-xl md:text-2xl font-black uppercase tracking-tighter; }
   .markdown-body h2 { @apply text-lg md:text-xl font-black uppercase tracking-tighter border-b border-accent/20 pb-2 mb-3; }
+  .markdown-body h3 { @apply text-base md:text-lg font-bold uppercase tracking-tight text-accent/80; }
   .markdown-body p { @apply text-zinc-300 leading-relaxed font-medium text-[13px]; }
-  .markdown-body code { @apply bg-black/50 px-1.5 py-0.5 rounded text-accent font-mono text-[12px] border border-zinc-800; }
+  .markdown-body code { @apply bg-black/60 px-1.5 py-0.5 rounded text-accent font-mono text-[12px] border border-zinc-800/50; }
   .markdown-body table { @apply w-full text-[11px] border-collapse border border-zinc-800; }
   .markdown-body th { @apply bg-surface text-white font-black uppercase px-2 py-1.5 border border-zinc-800; }
   .markdown-body td { @apply text-zinc-400 px-2 py-1.5 border border-zinc-800; }
   .markdown-body pre { @apply bg-black p-3 md:p-4 border border-zinc-800 overflow-x-auto relative rounded-sm; }
-  .markdown-body pre::before { content: "CODE"; @apply absolute top-0 right-0 bg-surface px-2 py-0.5 text-[8px] font-black font-mono text-zinc-500 rounded-sm; }
+  .markdown-body pre::before { content: "CODE"; @apply absolute top-0 right-0 bg-surface px-2 py-0.5 text-[7px] font-black font-mono text-zinc-600 rounded-sm; }
   .markdown-body pre code { @apply bg-transparent p-0 text-zinc-300 border-none text-[12px]; }
   .markdown-body ul { @apply list-disc list-inside space-y-1.5 text-zinc-400 font-medium text-[13px]; }
   .markdown-body ol { @apply list-decimal list-inside space-y-1.5 text-zinc-400 font-medium text-[13px]; }
   .markdown-body li { @apply leading-relaxed; }
+  .markdown-body blockquote { @apply border-l-2 border-accent/30 pl-3 text-zinc-400 italic text-[13px]; }
+  .markdown-body a { @apply text-accent underline underline-offset-2 hover:text-white transition-colors; }
+  .markdown-body strong { @apply text-white font-bold; }
 
-  .glow-green { text-shadow: 0 0 10px rgba(0, 255, 65, 0.5); }
-  .glow-box { box-shadow: 0 0 15px rgba(0, 255, 65, 0.1); }
+  /* Premium glow effects */
+  .glow-green { text-shadow: 0 0 10px rgba(0, 255, 65, 0.5), 0 0 20px rgba(0, 255, 65, 0.2); }
+  .glow-red { text-shadow: 0 0 10px rgba(255, 0, 64, 0.5); }
+  .glow-box { box-shadow: 0 0 15px rgba(0, 255, 65, 0.08), inset 0 0 30px rgba(0, 255, 65, 0.02); }
+  .glow-border { box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.1), 0 0 20px rgba(0, 255, 65, 0.04); }
+  .glass { @apply bg-white/[0.03] backdrop-blur-md border border-white/[0.06]; }
+  .glass-dark { @apply bg-black/40 backdrop-blur-lg border border-zinc-800/50; }
+
+  /* Animations */
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 4px rgba(0,255,65,0.4); }
+    50% { box-shadow: 0 0 16px rgba(0,255,65,0.8); }
+  }
+  .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+
+  @keyframes scanline {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100%); }
+  }
+  .scanline::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(transparent 50%, rgba(0,255,65,0.01) 50%);
+    background-size: 100% 4px;
+    animation: scanline 8s linear infinite;
+  }
+
+  @keyframes matrix-rain {
+    0% { opacity: 0; transform: translateY(-20px); }
+    10% { opacity: 0.5; }
+    90% { opacity: 0.5; }
+    100% { opacity: 0; transform: translateY(100vh); }
+  }
+
+  /* Premium button styles */
+  .btn-primary {
+    @apply px-4 py-2 bg-accent text-black font-black text-xs uppercase tracking-widest rounded-sm transition-all active:scale-95;
+    box-shadow: 0 0 20px rgba(0,255,65,0.15);
+  }
+  .btn-primary:hover { @apply bg-white; box-shadow: 0 0 30px rgba(0,255,65,0.3); }
+
+  .btn-ghost {
+    @apply px-3 py-1.5 text-zinc-500 text-[10px] font-black uppercase tracking-wider rounded-sm border border-zinc-800 transition-all hover:text-white hover:border-zinc-600;
+  }
+  .btn-ghost:hover { @apply bg-white/5; }
+
+  .btn-danger {
+    @apply px-4 py-2 bg-red-500/10 text-red-400 font-black text-xs uppercase tracking-widest rounded-sm border border-red-500/20 transition-all active:scale-95;
+  }
+  .btn-danger:hover { @apply bg-red-500/20; box-shadow: 0 0 20px rgba(255,0,64,0.15); }
+
+  /* Panel transition */
+  .panel-enter { animation: panel-in 0.2s ease-out; }
+  @keyframes panel-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 }

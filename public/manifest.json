@@ -1,14 +1,27 @@
 {
-  "name": "Nex.AI",
+  "name": "Nex.AI — AI Terminal & Exploit Engine",
   "short_name": "Nex.AI",
-  "description": "AI-Powered Terminal & Exploit Assistant",
+  "description": "Elite AI-powered terminal, exploit engine, and 30+ security tools for penetration testing — optimized for Termux/Android",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#000000",
   "theme_color": "#00ff41",
-  "orientation": "portrait",
+  "dir": "ltr",
+  "lang": "en",
+  "categories": ["utilities", "developer-tools", "security"],
+  "prefer_related_applications": false,
+  "purpose": "any",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    { "name": "Terminal", "url": "/?panel=terminal", "description": "Open AI Terminal" },
+    { "name": "AI Chat", "url": "/?panel=chat", "description": "Open AI Assistant" },
+    { "name": "Arsenal", "url": "/?panel=arsenal", "description": "Security Arsenal" },
+    { "name": "Exploit Engine", "url": "/?panel=exploit-engine", "description": "AI Exploit Engine" }
   ]
 }
