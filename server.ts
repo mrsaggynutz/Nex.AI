@@ -283,7 +283,9 @@ async function chatWithAPI(config: AIConfig, messages: { role: string; content: 
   const baseUrl = config.baseUrl.replace(/\/+$/, '');
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (config.apiKey) headers['Authorization'] = `Bearer ${config.apiKey}`;
-  if (config.provider === 'openrouter') {
+  // OpenRouter requires these headers — detect by provider OR by URL
+  const isOpenRouter = config.provider === 'openrouter' || baseUrl.includes('openrouter.ai');
+  if (isOpenRouter) {
     headers['HTTP-Referer'] = 'https://nexai.local';
     headers['X-Title'] = 'Nex.AI';
   }
@@ -817,10 +819,18 @@ async function startServer() {
   // Initialize Z-AI SDK (optional — not available on Termux)
   if (process.env.NODE_ENV !== 'production') await initZAI();
 
-  // Startup AI readiness check
+  // Startup AI readiness check with live connection test
   const aiConfig = loadAIConfig();
   if (isAIReady(aiConfig)) {
     console.log(`  AI: ${aiConfig.provider.toUpperCase()} (${aiConfig.model}) — key configured`);
+    // Quick connection test — fail silently, just log the result
+    try {
+      const testResult = await chatWithAPI(aiConfig, [{ role: 'user', content: 'ping' }], '');
+      console.log(`  AI: Connection verified (${testResult.model})`);
+    } catch (testErr: any) {
+      console.log(`  AI: Connection FAILED — ${testErr.message}`);
+      console.log(`       Fix: Go to AI Settings → Test Connection, or switch provider`);
+    }
   } else {
     console.log(`  AI: Not configured — go to AI Settings to add your API key`);
   }
