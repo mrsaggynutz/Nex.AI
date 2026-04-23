@@ -290,7 +290,9 @@ async function chatWithAPI(config: AIConfig, messages: { role: string; content: 
     headers['X-Title'] = 'Nex.AI';
   }
 
-  const fallbacks = FALLBACK_MODELS[config.provider] || [];
+  // If custom provider uses OpenRouter URL, use OpenRouter fallbacks
+  const isOpenRouter = config.provider === 'openrouter' || config.baseUrl.includes('openrouter.ai');
+  const fallbacks = FALLBACK_MODELS[config.provider] || (isOpenRouter ? FALLBACK_MODELS['openrouter'] : []);
   const modelsToTry = [config.model, ...fallbacks.filter(m => m !== config.model)];
   const seen = new Set<string>();
   const uniqueModels = modelsToTry.filter(m => { if (seen.has(m)) return false; seen.add(m); return true; });
@@ -819,18 +821,14 @@ async function startServer() {
   // Initialize Z-AI SDK (optional — not available on Termux)
   if (process.env.NODE_ENV !== 'production') await initZAI();
 
-  // Startup AI readiness check with live connection test
+  // Startup AI status (local check only — no API calls, saves rate limit)
   const aiConfig = loadAIConfig();
   if (isAIReady(aiConfig)) {
-    console.log(`  AI: ${aiConfig.provider.toUpperCase()} (${aiConfig.model}) — key configured`);
-    // Quick connection test — fail silently, just log the result
-    try {
-      const testResult = await chatWithAPI(aiConfig, [{ role: 'user', content: 'ping' }], '');
-      console.log(`  AI: Connection verified (${testResult.model})`);
-    } catch (testErr: any) {
-      console.log(`  AI: Connection FAILED — ${testErr.message}`);
-      console.log(`       Fix: Go to AI Settings → Test Connection, or switch provider`);
-    }
+    const provider = aiConfig.provider.toUpperCase();
+    const model = aiConfig.model;
+    const isOpenRouterUrl = aiConfig.baseUrl.includes('openrouter.ai');
+    const fallbackCount = (FALLBACK_MODELS[aiConfig.provider] || (isOpenRouterUrl ? FALLBACK_MODELS['openrouter'] : [])).length;
+    console.log(`  AI: ${provider} (${model}) — key configured${fallbackCount > 0 ? `, ${fallbackCount} fallback models` : ''}`);
   } else {
     console.log(`  AI: Not configured — go to AI Settings to add your API key`);
   }
