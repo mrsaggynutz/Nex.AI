@@ -23,8 +23,7 @@ interface CodeBlock {
 }
 
 interface ExecutionResult {
-  blockId: string;
-  output: string;
+  result: string;
   success: boolean;
   running: boolean;
   duration: number;

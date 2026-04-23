@@ -28,7 +28,7 @@ interface AIConfigResponse {
 }
 
 interface AISettingsProps {
-  onClose: () => void;
+  onClose?: () => void;
   onSaved?: () => void;
 }
 
@@ -46,6 +46,7 @@ const PROVIDER_DISPLAY: Record<string, { label: string; icon: React.ReactNode; c
 /* ─── Component ─── */
 
 export const AISettings: React.FC<AISettingsProps> = ({ onClose, onSaved }) => {
+  const handleClose = onClose || (() => {});
   const [config, setConfig] = useState<AIConfigResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -179,7 +180,7 @@ export const AISettings: React.FC<AISettingsProps> = ({ onClose, onSaved }) => {
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors">
+          <button onClick={handleClose} className="p-2 text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors">
             <X size={18} />
           </button>
         </div>

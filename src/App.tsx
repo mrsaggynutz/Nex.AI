@@ -208,7 +208,7 @@ export default function App() {
       case 'terminal': return <AxiomTerminal onExecute={executeCommand} onRunInTerminal={handleRunInTerminal} injectedCommand={terminalInput} autoConnect />;
       case 'tools': return <ToolLauncher onExecuteCommand={executeCommand} onRunInTerminal={handleRunInTerminal} onSendMessage={handleSendMessage} />;
       case 'chat': return <AxiomChat messages={messages} onSendMessage={handleSendMessage} isThinking={isThinking} onClear={() => setMessages([])} />;
-      case 'arsenal': return <MasterArsenal onNavigate={navigateToPanel} onRunInTerminal={handleRunInTerminal} onExecuteCommand={executeCommand} />;
+      case 'arsenal': return <MasterArsenal onNavigate={navigateToPanel} onRunInTerminal={handleRunInTerminal} onExecuteCommand={(cmd: string) => () => executeCommand(cmd)} />;
       case 'core-ai': return <AxiomCoreAI onSendMessage={handleSendMessage} onExecuteCommand={executeCommand} onRunInTerminal={handleRunInTerminal} />;
       case 'ai-settings': return <AISettings />;
       case 'toolstatus': return <ToolStatusDashboard onRunInTerminal={handleRunInTerminal} />;

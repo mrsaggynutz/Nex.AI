@@ -73,7 +73,8 @@ let zaiInstance: any = null;
 
 async function initZAI() {
   try {
-    const mod = await import('z-ai-web-dev-sdk');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mod: any = await import('z-ai-web-dev-sdk');
     const ZAI = mod.default || mod;
     zaiInstance = await ZAI.create();
     console.log("Z-AI SDK initialized");
@@ -300,7 +301,7 @@ async function chatWithZAI(messages: { role: string; content: string }[], modeHi
 /* ================================================================
    FEATURE COUNT
    ================================================================ */
-const FEATURE_COUNT = 30;
+const FEATURE_COUNT = 35;
 
 /* ================================================================
    SERVER
@@ -314,7 +315,7 @@ async function startServer() {
 
   // Health check
   app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", version: "1.0.0", features: FEATURE_COUNT, hostname, uptime: process.uptime() });
+    res.json({ status: "ok", version: "2.1.0", features: FEATURE_COUNT, hostname, uptime: process.uptime() });
   });
 
   // ─── AI Config ───
@@ -391,7 +392,7 @@ async function startServer() {
           const usedFallback = result.reasoningSteps.some((s: string) => s.startsWith('Fallback'));
           res.json({
             content: result.content,
-            toolsUsed: [`Nex.AI v1.0`, config.provider.toUpperCase()],
+            toolsUsed: [`Nex.AI v2.1`, config.provider.toUpperCase()],
             reasoningSteps: result.reasoningSteps,
             model: result.model,
             _fallback: usedFallback,
@@ -406,7 +407,7 @@ async function startServer() {
 
       if (zaiInstance) {
         const result = await chatWithZAI(finalMessages, modeHint);
-        res.json({ content: result.content, toolsUsed: ['Nex.AI v1.0', 'Z-AI SDK'], reasoningSteps: result.reasoningSteps, model: result.model });
+        res.json({ content: result.content, toolsUsed: ['Nex.AI v2.1', 'Z-AI SDK'], reasoningSteps: result.reasoningSteps, model: result.model });
         return;
       }
 
@@ -756,7 +757,7 @@ async function startServer() {
   app.use(vite.middlewares);
 
   app.listen(PORT, () => {
-    console.log(`\n  Nex.AI v1.0 → http://localhost:${PORT}\n  ${FEATURE_COUNT} features loaded\n`);
+    console.log(`\n  Nex.AI v2.1 → http://localhost:${PORT}\n  ${FEATURE_COUNT} features loaded\n`);
   });
 
   await initZAI();
