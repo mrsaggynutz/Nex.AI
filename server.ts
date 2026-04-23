@@ -60,7 +60,7 @@ function maskKey(key: string): string {
 
 function isAIReady(config: AIConfig): boolean {
   if (zaiInstance) return true;
-  if (config.apiKey) return true;
+  if (config.apiKey && config.apiKey.trim().length > 5) return true;
   if (config.provider === 'ollama') return true;
   return false;
 }
@@ -191,19 +191,22 @@ function abortWithTimeout(ms: number): { signal: AbortSignal; cleanup: () => voi
   return { signal: controller.signal, cleanup: () => clearTimeout(timeoutId) };
 }
 
-/* Retry only on rate-limit (429) and server errors (5xx). Fail fast on connection/DNS errors. */
+/* Retry only on rate-limit (429) and server errors (5xx). Fail fast on ALL network/connection errors. */
 function isRetryableError(err: any, response?: Response): boolean {
   if (err) {
-    // Hard failures — no point retrying: DNS, connection refused, network down, timeout
     if (err.name === 'AbortError') return false;
     const msg = (err.message || '').toLowerCase();
+    // ALL network/connection/DNS/timeout errors — never retry
     if (msg.includes('econnrefused') || msg.includes('enotfound') || msg.includes('fetch failed')
       || msg.includes('network') || msg.includes('dns') || msg.includes('socket')
-      || msg.includes('connection') || msg.includes('timeout') || msg.includes('reset')) {
+      || msg.includes('connection') || msg.includes('timeout') || msg.includes('reset')
+      || msg.includes('enetunreach') || msg.includes('econnreset') || msg.includes('epipe')
+      || msg.includes('ehostunreach') || msg.includes('getaddrinfo') || msg.includes('unable to connect')
+      || msg.includes('no internet') || msg.includes('offline')) {
       return false;
     }
-    // Unknown errors — retry once
-    return true;
+    // Unknown errors — also fail fast, don't spam retries
+    return false;
   }
   if (response) {
     // 429 rate-limit → always retry
@@ -813,6 +816,14 @@ async function startServer() {
 
   // Initialize Z-AI SDK (optional — not available on Termux)
   if (process.env.NODE_ENV !== 'production') await initZAI();
+
+  // Startup AI readiness check
+  const aiConfig = loadAIConfig();
+  if (isAIReady(aiConfig)) {
+    console.log(`  AI: ${aiConfig.provider.toUpperCase()} (${aiConfig.model}) — key configured`);
+  } else {
+    console.log(`  AI: Not configured — go to AI Settings to add your API key`);
+  }
 
   app.listen(PORT, () => {
     console.log(`\n  Nex.AI v2.2 → http://localhost:${PORT}\n  ${FEATURE_COUNT} features loaded\n  Open Claw Agent active\n`);
