@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNotification } from './NotificationProvider';
 import {
   Folder, File, ChevronRight, Home, Search, RefreshCw,
   Trash2, Edit3, Download, Eye, X, ArrowUp, FolderPlus,
@@ -77,6 +78,7 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ onExecute, onOpenInEdi
   const [contextMenu, setContextMenu] = useState<{ item: FileItem; x: number; y: number } | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const notify = useNotification();
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -93,6 +95,7 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ onExecute, onOpenInEdi
       const data = await res.json();
       if (data.error) {
         setItems([]);
+        notify(data.error, 'error');
         return;
       }
       setItems(data.items || []);
@@ -137,12 +140,12 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ onExecute, onOpenInEdi
       });
       const data = await res.json();
       if (data.error) {
-        alert(data.error);
+        notify(data.error, 'error');
         return;
       }
       setViewFile({ name: item.name, content: data.content, path: data.path });
     } catch {
-      alert('Failed to read file');
+      notify('Failed to read file', 'error');
     } finally {
       setLoading(false);
     }
@@ -161,11 +164,12 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ onExecute, onOpenInEdi
       if (data.success) {
         setEditFile(null);
         fetchDirectory(currentPath);
+        notify('File saved successfully.', 'success');
       } else {
-        alert(data.error || 'Save failed');
+        notify(data.error || 'Save failed', 'error');
       }
     } catch {
-      alert('Save failed');
+      notify('Save failed', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -185,11 +189,12 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ onExecute, onOpenInEdi
       if (data.success) {
         setContextMenu(null);
         fetchDirectory(currentPath);
+        notify('Item deleted successfully.', 'success');
       } else {
-        alert(data.error || 'Delete failed');
+        notify(data.error || 'Delete failed', 'error');
       }
     } catch {
-      alert('Delete failed');
+      notify('Delete failed', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -210,11 +215,12 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ onExecute, onOpenInEdi
       if (data.success) {
         setRenameFile(null);
         fetchDirectory(currentPath);
+        notify('Rename completed.', 'success');
       } else {
-        alert(data.error || 'Rename failed');
+        notify(data.error || 'Rename failed', 'error');
       }
     } catch {
-      alert('Rename failed');
+      notify('Rename failed', 'error');
     } finally {
       setActionLoading(false);
     }
@@ -234,11 +240,12 @@ export const FileBrowser: React.FC<FileBrowserProps> = ({ onExecute, onOpenInEdi
         setNewFolderName('');
         setShowNewFolder(false);
         fetchDirectory(currentPath);
+        notify('Folder created successfully.', 'success');
       } else {
-        alert(data.error || 'Failed to create folder');
+        notify(data.error || 'Failed to create folder', 'error');
       }
     } catch {
-      alert('Failed to create folder');
+      notify('Failed to create folder', 'error');
     } finally {
       setActionLoading(false);
     }

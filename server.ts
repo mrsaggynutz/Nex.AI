@@ -185,10 +185,10 @@ const FALLBACK_MODELS: Record<string, string[]> = {
 
 function delay(ms: number): Promise<void> { return new Promise(r => setTimeout(r, ms)); }
 
-function abortWithTimeout(ms: number): { signal: AbortSignal; cleanup: () => void } {
+function abortWithTimeout(ms: number): { controller: AbortController; signal: AbortSignal; cleanup: () => void } {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), ms);
-  return { signal: controller.signal, cleanup: () => clearTimeout(timeoutId) };
+  return { controller, signal: controller.signal, cleanup: () => clearTimeout(timeoutId) };
 }
 
 /* Retry only on rate-limit (429) and server errors (5xx). Fail fast on ALL network/connection errors. */
@@ -223,11 +223,11 @@ async function fetchWithRetry(url: string, headers: Record<string, string>, body
   let lastResponse: Response | null = null;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    const { signal, cleanup } = abortWithTimeout(120000);
+    const { controller, signal, cleanup } = abortWithTimeout(120000);
     let onExternalAbort: (() => void) | undefined;
     if (externalSignal) {
-      onExternalAbort = () => signal.addEventListener('abort', () => {});
-      externalSignal.addEventListener('abort', () => { try { (signal as any).abort?.(); } catch {} }, { once: true });
+      onExternalAbort = () => controller.abort();
+      externalSignal.addEventListener('abort', onExternalAbort, { once: true });
     }
 
     try {
@@ -291,7 +291,6 @@ async function chatWithAPI(config: AIConfig, messages: { role: string; content: 
   }
 
   // If custom provider uses OpenRouter URL, use OpenRouter fallbacks
-  const isOpenRouter = config.provider === 'openrouter' || config.baseUrl.includes('openrouter.ai');
   const fallbacks = FALLBACK_MODELS[config.provider] || (isOpenRouter ? FALLBACK_MODELS['openrouter'] : []);
   const modelsToTry = [config.model, ...fallbacks.filter(m => m !== config.model)];
   const seen = new Set<string>();
