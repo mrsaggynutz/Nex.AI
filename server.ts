@@ -301,7 +301,7 @@ async function chatWithZAI(messages: { role: string; content: string }[], modeHi
 /* ================================================================
    FEATURE COUNT
    ================================================================ */
-const FEATURE_COUNT = 35;
+const FEATURE_COUNT = 36;
 
 /* ================================================================
    SERVER
@@ -757,7 +757,7 @@ async function startServer() {
   app.use(vite.middlewares);
 
   app.listen(PORT, () => {
-    console.log(`\n  Nex.AI v2.1 → http://localhost:${PORT}\n  ${FEATURE_COUNT} features loaded\n`);
+    console.log(`\n  Nex.AI v2.1 → http://localhost:${PORT}\n  ${FEATURE_COUNT} features loaded\n  Open Claw Agent active\n`);
   });
 
   await initZAI();
