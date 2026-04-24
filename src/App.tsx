@@ -63,7 +63,7 @@ const ARSENAL_SUBPANELS: PanelMode[] = [
   'file-browser', 'code-editor', 'git-panel', 'live-preview'
 ];
 
-const FEATURE_COUNT = 36;
+const FEATURE_COUNT = 38;
 
 /* PWA Install Prompt */
 let deferredPrompt: BeforeInstallPromptEvent | null = null;

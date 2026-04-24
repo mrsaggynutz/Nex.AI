@@ -67,6 +67,21 @@ interface MissionResult {
   status: 'running' | 'completed' | 'error' | 'cancelled';
 }
 
+interface LearnedSkill {
+  id: string;
+  name: string;
+  category: SkillCategory;
+  description: string;
+  commands: string[];
+  installCmd?: string;
+  dangerLevel: DangerLevel;
+  tags: string[];
+  learnedFrom: string;   // mission id that discovered it
+  learnedAt: number;     // timestamp
+  executionCount: number; // times used
+  successCount: number;  // times succeeded
+}
+
 interface PresetMission {
   id: string;
   label: string;
@@ -271,6 +286,61 @@ RULES:
 - Include installation commands as separate steps if tools are needed`;
 };
 
+const LEARNED_SKILLS_KEY = 'openclaw-learned-skills';
+const KNOWLEDGE_BASE_KEY = 'openclaw-knowledge-base';
+
+interface KnowledgeEntry {
+  id: string;
+  domain: string;
+  finding: string;
+  source: string;
+  timestamp: number;
+}
+
+function loadLearnedSkills(): LearnedSkill[] {
+  try {
+    const raw = localStorage.getItem(LEARNED_SKILLS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveLearnedSkills(skills: LearnedSkill[]) {
+  try { localStorage.setItem(LEARNED_SKILLS_KEY, JSON.stringify(skills)); } catch { /* ignore */ }
+}
+
+function loadKnowledgeBase(): KnowledgeEntry[] {
+  try {
+    const raw = localStorage.getItem(KNOWLEDGE_BASE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveKnowledgeBase(kb: KnowledgeEntry[]) {
+  try { localStorage.setItem(KNOWLEDGE_BASE_KEY, JSON.stringify(kb)); } catch { /* ignore */ }
+}
+
+const buildSkillDiscoveryPrompt = (objective: string, lastOutput: string, stepName: string, existingSkillIds: string[]): string => {
+  return `You are OPEN CLAW — an autonomous security agent. You just executed a step and got results.
+
+OBJECTIVE: ${objective}
+LAST STEP: ${stepName}
+OUTPUT FROM LAST STEP:
+${lastOutput.slice(0, 2000)}
+
+ALREADY KNOWN SKILLS (do NOT repeat these IDs): ${existingSkillIds.join(', ')}
+
+Based on the output above, identify if:
+1. New tools/techniques were discovered that could be useful for the objective
+2. The results indicate a different approach is needed (e.g., new services found, different OS detected)
+3. Additional skills would improve the next steps
+
+RESPOND WITH VALID JSON only (no markdown fences):
+{"discoveries": [{"name": "skill name", "description": "what this does", "command": "exact command to run", "install_cmd": "install command if needed or empty string", "danger_level": "low|medium|high|critical", "category": "recon|exploit|web|privesc|osint|wireless|crypto|forensics|network|post-exploit|utility", "tags": ["tag1"], "reason": "why this skill is needed based on the output"}], "plan_adjustment": "brief description of how the plan should change, or 'continue as planned' if no change needed"}
+
+If no new skills are needed, return: {"discoveries": [], "plan_adjustment": "continue as planned"}
+Maximum 3 new skills per discovery phase.`;
+};
+
 const buildAnalysisPrompt = (results: string): string => `You are OPEN CLAW — autonomous security agent. Analyze these execution results and provide a comprehensive security assessment.
 
 EXECUTION RESULTS:
@@ -330,7 +400,11 @@ export const OpenClawAgent: React.FC<OpenClawAgentProps> = ({
   const [targetInput, setTargetInput] = useState('');
   const [showTargetInput, setShowTargetInput] = useState(false);
   const [copiedReport, setCopiedReport] = useState(false);
-  const consoleEndRef = useRef<HTMLDivElement>(null);
+  const [learnedSkills, setLearnedSkills] = useState<LearnedSkill[]>(() => loadLearnedSkills());
+  const [knowledgeBase, setKnowledgeBase] = useState<KnowledgeEntry[]>(() => loadKnowledgeBase());
+  const [totalSkillsDiscovered, setTotalSkillsDiscovered] = useState(0);
+  const [adaptiveAdjustments, setAdaptiveAdjustments] = useState(0);
+  const consoleEndRef = useRef<HTMLDivElement>(null);dRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef(false);
   const pausedRef = useRef(false);
   const pendingApprovalRef = useRef(false);
@@ -392,7 +466,17 @@ export const OpenClawAgent: React.FC<OpenClawAgentProps> = ({
       .replace(/\{server\}/g, targetInput || '192.168.1.1');
   };
 
-  const getSkill = (id: string): Skill | undefined => SKILLS_DB.find(s => s.id === id);
+  const getSkill = (id: string): Skill | undefined => {
+    const builtin = SKILLS_DB.find(s => s.id === id);
+    if (builtin) return builtin;
+    const learned = learnedSkills.find(s => s.id === id);
+    if (learned) return learned as unknown as Skill;
+    return undefined;
+  };
+
+  const getAllSkills = useCallback((): Skill[] => {
+    return [...SKILLS_DB, ...learnedSkills.map(ls => ({ ...ls, category: ls.category || 'utility' }))];
+  }, [learnedSkills]);
 
   const timestamp = () => {
     const d = new Date();
@@ -481,7 +565,18 @@ export const OpenClawAgent: React.FC<OpenClawAgentProps> = ({
 
     await new Promise(r => setTimeout(r, 400));
 
-    // ── Phase 3: Execution ──
+    // ── Phase 2.5: Dynamic Skill Discovery ──
+    captureLog('skill_fetch', 'Scanning knowledge base for relevant prior findings...');
+    const relevantKnowledge = knowledgeBase.filter(k =>
+      objective.toLowerCase().includes(k.domain.toLowerCase()) ||
+      k.domain.toLowerCase().includes(objective.toLowerCase().split(' ')[0])
+    );
+    if (relevantKnowledge.length > 0) {
+      captureLog('skill_fetch', `Found ${relevantKnowledge.length} relevant knowledge entries from past missions`);
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    // ── Phase 3: Execution + Adaptive Learning ──
     setPhase('executing');
     captureLog('executing', `Starting execution in ${execMode.toUpperCase()} mode...`);
 
@@ -530,6 +625,72 @@ export const OpenClawAgent: React.FC<OpenClawAgentProps> = ({
 
         const outputPreview = result.length > 200 ? result.slice(0, 200) + '...' : result;
         captureLog('executing', `✓ Step ${i + 1} completed`, outputPreview.replace(/\n/g, ' '));
+
+        // ── Adaptive Skill Discovery (after each step) ──
+        if (result.length > 20 && i < plan.steps.length - 1 && !abortRef.current) {
+          captureLog('skill_fetch', 'Analyzing output for new skill opportunities...');
+          try {
+            const existingIds = [...SKILLS_DB, ...learnedSkills].map(s => s.id);
+            const discoveryRes = await fetch('/api/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ messages: [{ role: 'user', content: buildSkillDiscoveryPrompt(obj, result, step.name, existingIds) }] }),
+            });
+            const discData = await discoveryRes.json();
+            const discContent = discData.response || discData.content || '';
+            const discMatch = discContent.match(/\{[\s\S]*\}/);
+            if (discMatch) {
+              const discParsed = JSON.parse(discMatch[0]);
+              if (discParsed.discoveries && discParsed.discoveries.length > 0) {
+                const newSkills: LearnedSkill[] = discParsed.discoveries.map((d: any) => ({
+                  id: `learned-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                  name: d.name,
+                  category: (CATEGORY_CONFIG[d.category] ? d.category : 'utility') as SkillCategory,
+                  description: d.description,
+                  commands: d.command ? [resolveCommand(d.command)] : [],
+                  installCmd: d.install_cmd || '',
+                  dangerLevel: (['low', 'medium', 'high', 'critical'].includes(d.danger_level) ? d.danger_level : 'medium') as DangerLevel,
+                  tags: d.tags || [],
+                  learnedFrom: missionId,
+                  learnedAt: Date.now(),
+                  executionCount: 0,
+                  successCount: 0,
+                }));
+                const updatedLearned = [...learnedSkills, ...newSkills];
+                setLearnedSkills(updatedLearned);
+                saveLearnedSkills(updatedLearned);
+                setTotalSkillsDiscovered(prev => prev + newSkills.length);
+                for (const ns of newSkills) {
+                  captureLog('skill_fetch', `★ New skill discovered: ${ns.name}`, `${ns.description} [${ns.dangerLevel.toUpperCase()}]`);
+                }
+                if (newSkills.length > 0) captureLog('skill_fetch', `Knowledge base expanded: +${newSkills.length} skill${newSkills.length > 1 ? 's' : ''}`);
+              }
+              if (discParsed.plan_adjustment && discParsed.plan_adjustment !== 'continue as planned') {
+                setAdaptiveAdjustments(prev => prev + 1);
+                captureLog('executing', `→ Adaptive adjustment: ${discParsed.plan_adjustment}`);
+              }
+            }
+          } catch {
+            captureLog('skill_fetch', 'Skill discovery scan completed (no new skills)');
+          }
+          await new Promise(r => setTimeout(r, 300));
+        }
+
+        // Store knowledge from output for future missions
+        if (result.length > 50) {
+          const domainGuess = obj.split(' ').slice(0, 3).join(' ');
+          const newKnowledge: KnowledgeEntry = {
+            id: `kb-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            domain: domainGuess,
+            finding: `${step.name}: ${result.slice(0, 300)}`,
+            source: `mission-${missionId}-step-${i + 1}`,
+            timestamp: Date.now(),
+          };
+          const updatedKB = [...knowledgeBase, newKnowledge].slice(-100);
+          setKnowledgeBase(updatedKB);
+          saveKnowledgeBase(updatedKB);
+        }
+
       } catch (err: any) {
         allResults.push(`=== Step ${i + 1}: ${step.name} (FAILED) ===\nError: ${err.message}`);
         setCurrentPlan(prev => prev ? {
@@ -705,6 +866,12 @@ export const OpenClawAgent: React.FC<OpenClawAgentProps> = ({
                 style={{ color: NEON_GREEN, borderColor: `${NEON_GREEN}33`, background: `${NEON_GREEN}11` }}>
                 AUTONOMOUS
               </span>
+              {learnedSkills.length > 0 && (
+                <span className="text-[7px] px-1.5 py-0.5 border font-black tracking-widest"
+                  style={{ color: '#facc15', borderColor: '#facc1533', background: '#facc1511' }}>
+                  ★ {learnedSkills.length} LEARNED
+                </span>
+              )}
             </h2>
             <div className="flex items-center gap-1.5">
               <div className={cn(
@@ -889,8 +1056,13 @@ export const OpenClawAgent: React.FC<OpenClawAgentProps> = ({
                       Autonomous Security Operations Agent
                     </p>
                     <p className="text-[9px] text-gray-700 mt-2">
-                      {SKILLS_DB.length} skills loaded • {CATEGORIES_ORDERED.length} categories • Ready to deploy
+                      {SKILLS_DB.length + learnedSkills.length} skills loaded • {CATEGORIES_ORDERED.length} categories • Ready to deploy
                     </p>
+                    {learnedSkills.length > 0 && (
+                      <p className="text-[9px] mt-1" style={{ color: '#39FF14' }}>
+                        ★ {learnedSkills.length} learned skills • {knowledgeBase.length} knowledge entries • {totalSkillsDiscovered} discovered this session
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -1106,6 +1278,93 @@ export const OpenClawAgent: React.FC<OpenClawAgentProps> = ({
                 <span className="text-[8px] text-gray-600 whitespace-nowrap">{filteredSkills.length} skills</span>
               </div>
             </div>
+
+            {/* Learned Skills (dynamic) */}
+            {learnedSkills.length > 0 && (
+              <div className="mb-4 p-2.5 border" style={{ background: `${NEON_GREEN}08`, borderColor: `${NEON_GREEN}22` }}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Brain size={13} style={{ color: NEON_GREEN }} />
+                    <span className="text-[9px] uppercase tracking-[0.15em] font-bold" style={{ color: NEON_GREEN }}>
+                      Learned Skills ({learnedSkills.length})
+                    </span>
+                  </div>
+                  <button onClick={() => {
+                    if (confirm('Clear all learned skills? This cannot be undone.')) {
+                      setLearnedSkills([]);
+                      saveLearnedSkills([]);
+                    }
+                  }} className="text-[7px] text-gray-600 hover:text-red-400 uppercase font-bold transition-colors">
+                    Clear
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  {learnedSkills.map(skill => (
+                    <button key={skill.id}
+                      onClick={() => setSelectedSkill(selectedSkill?.id === skill.id ? null : skill as any)}
+                      className="w-full text-left p-2 border transition-colors"
+                      style={{
+                        background: selectedSkill?.id === skill.id ? `${NEON_GREEN}0a` : BG_CARD,
+                        borderColor: selectedSkill?.id === skill.id ? `${NEON_GREEN}33` : 'rgba(255,255,255,0.03)',
+                      }}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[6px]" style={{ color: NEON_GREEN }}>★</span>
+                          <span className="text-[9px] font-bold text-gray-300">{skill.name}</span>
+                        </div>
+                        <span className={cn("text-[6px] px-1 py-0.5 border font-bold uppercase", DANGER_STYLES[skill.dangerLevel])}>
+                          {skill.dangerLevel}
+                        </span>
+                      </div>
+                      <p className="text-[8px] text-gray-600 mt-0.5">{skill.description}</p>
+                      <p className="text-[7px] text-gray-700 mt-0.5">Learned from mission • {new Date(skill.learnedAt).toLocaleDateString()}</p>
+                      <AnimatePresence>
+                        {selectedSkill?.id === skill.id && skill.commands.length > 0 && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="mt-2 pt-2" style={{ borderTop: `1px solid ${NEON_GREEN}22` }}>
+                              {skill.commands.map((cmd, ci) => (
+                                <div key={ci} className="flex items-center gap-1.5 mt-1">
+                                  <code className="flex-1 text-[8px] p-1.5" style={{ background: 'rgba(0,0,0,0.4)', color: NEON_GREEN }}>
+                                    {cmd}
+                                  </code>
+                                  <button onClick={(e) => { e.stopPropagation(); onRunInTerminal(cmd); }}
+                                    className="p-1 text-gray-600 hover:text-white transition-colors" title="Run in Terminal">
+                                    <Terminal size={10} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Knowledge Base Stats */}
+            {knowledgeBase.length > 0 && (
+              <div className="mb-4 p-2 border" style={{ background: BG_CARD, borderColor: 'rgba(255,255,255,0.04)' }}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Database size={12} className="text-gray-500" />
+                  <span className="text-[9px] uppercase tracking-[0.15em] font-bold text-gray-500">
+                    Knowledge Base ({knowledgeBase.length} entries)
+                  </span>
+                </div>
+                <p className="text-[8px] text-gray-700">Prior mission findings used for adaptive planning</p>
+                <button onClick={() => {
+                  if (confirm('Clear knowledge base?')) { setKnowledgeBase([]); saveKnowledgeBase([]); }
+                }} className="text-[7px] text-gray-700 hover:text-red-400 uppercase font-bold mt-1 transition-colors">
+                  Reset Knowledge
+                </button>
+              </div>
+            )}
 
             {/* Skills List */}
             <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-4">

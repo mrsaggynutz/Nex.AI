@@ -347,7 +347,7 @@ async function chatWithZAI(messages: { role: string; content: string }[], modeHi
 /* ================================================================
    FEATURE COUNT
    ================================================================ */
-const FEATURE_COUNT = 37;
+const FEATURE_COUNT = 38;
 
 /* ================================================================
    SERVER
@@ -810,6 +810,109 @@ async function startServer() {
       });
       res.json({ branches });
     } catch (e: any) { res.json({ error: e.message, branches: [] }); }
+  });
+
+  // ─── OpenClaw Autonomous Agent ───
+
+  const CLAW_DIR = path.join(AI_CONFIG_DIR, 'claw');
+  const CLAW_SKILLS_FILE = path.join(CLAW_DIR, 'learned-skills.json');
+  const CLAW_KNOWLEDGE_FILE = path.join(CLAW_DIR, 'knowledge.json');
+
+  function loadClawSkills(): any[] {
+    try { if (fs.existsSync(CLAW_SKILLS_FILE)) return JSON.parse(fs.readFileSync(CLAW_SKILLS_FILE, 'utf8')); } catch { /* ignore */ }
+    return [];
+  }
+  function saveClawSkills(skills: any[]) {
+    if (!fs.existsSync(CLAW_DIR)) fs.mkdirSync(CLAW_DIR, { recursive: true });
+    fs.writeFileSync(CLAW_SKILLS_FILE, JSON.stringify(skills, null, 2), 'utf8');
+  }
+  function loadClawKnowledge(): Record<string, any> {
+    try { if (fs.existsSync(CLAW_KNOWLEDGE_FILE)) return JSON.parse(fs.readFileSync(CLAW_KNOWLEDGE_FILE, 'utf8')); } catch { /* ignore */ }
+    return {};
+  }
+  function saveClawKnowledge(k: Record<string, any>) {
+    if (!fs.existsSync(CLAW_DIR)) fs.mkdirSync(CLAW_DIR, { recursive: true });
+    fs.writeFileSync(CLAW_KNOWLEDGE_FILE, JSON.stringify(k, null, 2), 'utf8');
+  }
+
+  app.get("/api/openclaw/data", (_req, res) => {
+    const skills = loadClawSkills();
+    const knowledge = loadClawKnowledge();
+    const sd = path.join(CLAW_DIR, 'scripts');
+    let scripts: string[] = [];
+    try { if (fs.existsSync(sd)) scripts = fs.readdirSync(sd).filter(f => !f.startsWith('.')); } catch { /* ignore */ }
+    res.json({ skills, knowledge, scripts, skillCount: skills.length, knowledgeCount: Object.keys(knowledge).length, scriptCount: scripts.length });
+  });
+
+  app.post("/api/openclaw/skill", (req, res) => {
+    const skill = req.body;
+    if (!skill?.id || !skill?.name) return res.status(400).json({ error: "Skill must have id and name" });
+    const skills = loadClawSkills();
+    const idx = skills.findIndex((s: any) => s.id === skill.id);
+    const enriched = { ...skill, learned: true, learnedAt: new Date().toISOString(), source: skill.source || 'autonomous' };
+    if (idx >= 0) skills[idx] = enriched; else skills.push(enriched);
+    saveClawSkills(skills);
+    res.json({ success: true, skill: enriched, total: skills.length });
+  });
+
+  app.post("/api/openclaw/skill/bulk", (req, res) => {
+    const { skills: newSkills } = req.body;
+    if (!Array.isArray(newSkills)) return res.status(400).json({ error: "skills array required" });
+    const skills = loadClawSkills();
+    for (const skill of newSkills) {
+      if (!skill.id || !skill.name) continue;
+      const idx = skills.findIndex((s: any) => s.id === skill.id);
+      const enriched = { ...skill, learned: true, learnedAt: new Date().toISOString(), source: skill.source || 'autonomous-bulk' };
+      if (idx >= 0) skills[idx] = enriched; else skills.push(enriched);
+    }
+    saveClawSkills(skills);
+    res.json({ success: true, added: newSkills.length, total: skills.length });
+  });
+
+  app.delete("/api/openclaw/skill/:id", (req, res) => {
+    const { id } = req.params;
+    const skills = loadClawSkills();
+    const before = skills.length;
+    const filtered = skills.filter((s: any) => s.id !== id);
+    if (filtered.length === before) return res.status(404).json({ error: `Skill "${id}" not found` });
+    saveClawSkills(filtered);
+    res.json({ success: true, removed: id, remaining: filtered.length });
+  });
+
+  app.post("/api/openclaw/knowledge", (req, res) => {
+    const { key, value } = req.body;
+    if (!key) return res.status(400).json({ error: "Key required" });
+    const knowledge = loadClawKnowledge();
+    knowledge[key] = { value: value || '', savedAt: new Date().toISOString() };
+    saveClawKnowledge(knowledge);
+    res.json({ success: true, key, total: Object.keys(knowledge).length });
+  });
+
+  app.post("/api/openclaw/script", (req, res) => {
+    const { filename, content } = req.body;
+    if (!filename || !content) return res.status(400).json({ error: "Filename and content required" });
+    const scriptDir = path.join(CLAW_DIR, 'scripts');
+    if (!fs.existsSync(scriptDir)) fs.mkdirSync(scriptDir, { recursive: true });
+    const safeName = filename.replace(/[^a-zA-Z0-9._\-]/g, '_');
+    const filePath = path.join(scriptDir, safeName);
+    fs.writeFileSync(filePath, content, 'utf8');
+    try { fs.chmodSync(filePath, 0o755); } catch { /* ignore */ }
+    res.json({ success: true, path: filePath, executable: true });
+  });
+
+  app.post("/api/openclaw/research", async (req, res) => {
+    const { topic, context } = req.body;
+    if (!topic) return res.status(400).json({ error: "Topic required" });
+    const config = loadAIConfig();
+    if (!isAIReady(config)) return res.status(503).json({ error: "AI not configured" });
+    try {
+      const messages = [
+        { role: 'system', content: 'You are OPEN CLAW autonomous research agent. Research thoroughly. Provide exact commands (Termux/Android), tool names, install steps, usage examples. Format as structured reusable knowledge: 1) Overview 2) Tools + install 3) Methodology 4) Example commands 5) Pitfalls.' },
+        { role: 'user', content: context ? `Research: ${topic}\nContext: ${context}` : `Research: ${topic}` },
+      ];
+      const result = await chatWithAPI(config, messages, 'OPEN CLAW RESEARCH');
+      res.json({ topic, research: result.content, model: result.model });
+    } catch (e: any) { res.status(502).json({ error: e.message }); }
   });
 
   // ─── Static files + SPA fallback ───
