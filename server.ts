@@ -832,8 +832,24 @@ async function startServer() {
     console.log(`  AI: Not configured — go to AI Settings to add your API key`);
   }
 
-  app.listen(PORT, () => {
-    console.log(`\n  Nex.AI v2.2 → http://localhost:${PORT}\n  ${FEATURE_COUNT} features loaded\n  Open Claw Agent active\n`);
+  const HOST = process.env.HOST || '0.0.0.0';
+
+  app.listen(Number(PORT), HOST, () => {
+    // Detect LAN IP for easy access from other devices on the same network
+    const nets = os.networkInterfaces();
+    let lanIP = 'localhost';
+    for (const name of Object.keys(nets)) {
+      for (const net of nets[name] || []) {
+        if (net.family === 'IPv4' && !net.internal) { lanIP = net.address; break; }
+      }
+      if (lanIP !== 'localhost') break;
+    }
+    console.log(`\n  Nex.AI v2.2 → http://${HOST === '0.0.0.0' ? lanIP : HOST}:${PORT}`);
+    if (HOST === '0.0.0.0' && lanIP !== 'localhost') {
+      console.log(`  LAN access  → http://${lanIP}:${PORT}  (other devices on same WiFi)`);
+    }
+    console.log(`  Local only  → http://localhost:${PORT}`);
+    console.log(`  ${FEATURE_COUNT} features loaded\n  Open Claw Agent active\n`);
   });
 }
 
