@@ -210,7 +210,7 @@ export const AxiomCoreAI: React.FC<AxiomCoreAIProps> = ({
   // Check AI health on mount
   const checkHealth = useCallback(async () => {
     fetch('/api/health').then(r => r.json()).then(d => {
-      setAiOnline(d.ai === 'connected');
+      setAiOnline(d.status === 'ok');
     }).catch(() => setAiOnline(false));
   }, []);
   useEffect(() => { checkHealth(); }, [checkHealth]);

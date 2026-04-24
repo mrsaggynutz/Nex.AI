@@ -5,7 +5,7 @@ import {
   Settings, Cpu, Database, Wifi, Globe, Lock, Eye, Radio, FileSearch,
   Brain, Target, Wrench, Layers, Activity, Hexagon, Ban, CheckCircle2,
   CircleDot, Loader2, Copy, Check, Flame, Scan, Radar, Crosshair,
-  Bug, KeyRound, HardDrive, ShieldCheck, Sword, RotateCcw, Filter,
+  Bug, KeyRound, HardDrive, ShieldCheck, RotateCcw, Filter,
   FolderOpen, Code2, MonitorSmartphone, ScrollText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
