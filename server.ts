@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import crypto from "crypto";
 import fs from "fs";
 import os from "os";
+import openclawRoutes from './openclaw/api-routes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -914,6 +915,10 @@ async function startServer() {
       res.json({ topic, research: result.content, model: result.model });
     } catch (e: any) { res.status(502).json({ error: e.message }); }
   });
+
+  // ─── OpenClaw Agent API ───
+
+  app.use('/api/openclaw', openclawRoutes);
 
   // ─── Static files + SPA fallback ───
 
