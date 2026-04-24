@@ -59,7 +59,12 @@ export const ToolLauncher: React.FC<ToolLauncherProps> = ({ onExecuteCommand, on
   };
 
   const handleCopyCommand = (cmd: string) => {
-    navigator.clipboard.writeText(cmd);
+    try {
+      navigator.clipboard.writeText(cmd).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = cmd; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+      });
+    } catch {}
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

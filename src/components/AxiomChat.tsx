@@ -97,7 +97,7 @@ export const AxiomChat: React.FC<AxiomChatProps> = ({ onSendMessage, messages, i
           <button onClick={() => setShowSettings(true)} className="p-2 hover:bg-zinc-800 text-zinc-500 hover:text-accent transition-colors" title="AI Settings">
             <Settings size={18} />
           </button>
-          <button onClick={onNewChat} className="p-2 hover:bg-zinc-800 text-zinc-500 hover:text-white transition-colors">
+          <button onClick={onNewChat ?? undefined} className="p-2 hover:bg-zinc-800 text-zinc-500 hover:text-white transition-colors">
             <Plus size={18} />
           </button>
           <button onClick={exportChat} className="p-2 hover:bg-zinc-800 text-zinc-500 hover:text-white transition-colors">

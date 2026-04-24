@@ -219,6 +219,7 @@ export const AICodeRunner: React.FC<AICodeRunnerProps> = ({ onExecute, onRunInTe
   const [totalExecutions, setTotalExecutions] = useState(0);
   const [totalErrors, setTotalErrors] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const isPausedRef = useRef(false);
   const [showRawOutput, setShowRawOutput] = useState(false);
   const [execHistory, setExecHistory] = useState<Array<{ cmd: string; output: string; success: boolean; duration: number; timestamp: number }>>([]);
 
@@ -234,6 +235,7 @@ export const AICodeRunner: React.FC<AICodeRunnerProps> = ({ onExecute, onRunInTe
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef(false);
+  const retryCountRef = useRef(0);
 
   // Load custom prompt from localStorage on mount
   useEffect(() => {
@@ -412,7 +414,7 @@ export const AICodeRunner: React.FC<AICodeRunnerProps> = ({ onExecute, onRunInTe
 
     for (const block of runnable) {
       if (abortRef.current) break;
-      while (isPaused) {
+      while (isPausedRef.current) {
         await new Promise(r => setTimeout(r, 500));
         if (abortRef.current) break;
       }
@@ -424,7 +426,10 @@ export const AICodeRunner: React.FC<AICodeRunnerProps> = ({ onExecute, onRunInTe
     }
 
     return results;
-  }, [runCode, isPaused]);
+  }, [runCode]);
+
+  // Sync isPaused ref when state changes
+  useEffect(() => { isPausedRef.current = isPaused; }, [isPaused]);
 
   const agenticLoop = useCallback(async (userMsg: string, initialMessages: RunnerMessage[]): Promise<void> => {
     const conversationHistory = initialMessages.filter(m => m.role !== 'system').map(m => ({
@@ -485,13 +490,14 @@ export const AICodeRunner: React.FC<AICodeRunnerProps> = ({ onExecute, onRunInTe
         conversationHistory.push({ role: 'assistant', content: aiContent });
 
         // Auto-retry on refusal (max 3 retries)
-        if (ws && codeBlocks.length === 0 && retryCount < 3) {
+        if (ws && codeBlocks.length === 0 && retryCountRef.current < 3) {
           const nextTpl = getNextTemplateId(currentTemplate);
           if (nextTpl) {
             const tplName = JAILBREAK_TEMPLATES.find(t => t.id === nextTpl)?.name || nextTpl;
             setRetryNotification(`Refusal detected. Retrying with ${tplName}...`);
             setLastRetryTemplate(tplName);
             setRetryCount(prev => prev + 1);
+            retryCountRef.current += 1;
             setActiveTemplate(nextTpl);
 
             // Replace the conversation history's last assistant with a retry note

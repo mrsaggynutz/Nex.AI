@@ -228,7 +228,12 @@ export const ForceRootScripts: React.FC<ForceRootScriptsProps> = ({ onExecute, o
   const [output, setOutput] = useState<Record<string, string>>({});
 
   const copyCmd = (cmd: string, id: string) => {
-    navigator.clipboard.writeText(cmd);
+    try {
+      navigator.clipboard.writeText(cmd).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = cmd; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+      });
+    } catch {}
     setCopied(id);
     setTimeout(() => setCopied(''), 2000);
   };

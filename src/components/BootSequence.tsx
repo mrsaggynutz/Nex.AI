@@ -61,18 +61,24 @@ export const BootSequence: React.FC<BootSequenceProps> = ({ onComplete }) => {
 
   useEffect(() => {
     if (!showCategories) return;
+    let fadeTimer: ReturnType<typeof setTimeout> | null = null;
+    let completeTimer: ReturnType<typeof setTimeout> | null = null;
     const interval = setInterval(() => {
       setVisibleCategories(prev => {
         if (prev >= TOOL_CATEGORIES.length) {
           clearInterval(interval);
-          setTimeout(() => setFadeOut(true), 600);
-          setTimeout(() => onComplete(), 1200);
+          fadeTimer = setTimeout(() => setFadeOut(true), 600);
+          completeTimer = setTimeout(() => onComplete(), 1200);
           return prev;
         }
         return prev + 1;
       });
     }, 80);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (fadeTimer) clearTimeout(fadeTimer);
+      if (completeTimer) clearTimeout(completeTimer);
+    };
   }, [showCategories, onComplete]);
 
   const StepIcon = currentStep < BOOT_STEPS.length ? BOOT_STEPS[currentStep].icon : ShieldCheck;

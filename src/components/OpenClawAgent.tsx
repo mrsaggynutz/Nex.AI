@@ -332,6 +332,8 @@ export const OpenClawAgent: React.FC<OpenClawAgentProps> = ({
   const [copiedReport, setCopiedReport] = useState(false);
   const consoleEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef(false);
+  const pausedRef = useRef(false);
+  const pendingApprovalRef = useRef(false);
 
   /* ── Derived ── */
   const filteredSkills = useMemo(() => {
@@ -402,10 +404,12 @@ export const OpenClawAgent: React.FC<OpenClawAgentProps> = ({
     abortRef.current = false;
     setCancelled(false);
     setPaused(false);
+    pausedRef.current = false;
     setCurrentPlan(null);
     setLogs([]);
     setAnalysisReport('');
     setPendingStepApproval(false);
+    pendingApprovalRef.current = false;
     setActiveSection('console');
 
     const missionId = `mission-${Date.now()}`;
@@ -438,8 +442,8 @@ export const OpenClawAgent: React.FC<OpenClawAgentProps> = ({
       const data = await res.json();
       const content = data.response || data.content || data.message || '';
 
-      // Try to parse JSON from response
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      // Try to parse JSON from response (non-greedy)
+      const jsonMatch = content.match(/\{[\s\S]*?\}/);
       if (!jsonMatch) throw new Error('AI did not return a valid plan');
       plan = JSON.parse(jsonMatch[0]);
 
@@ -487,7 +491,7 @@ export const OpenClawAgent: React.FC<OpenClawAgentProps> = ({
       if (abortRef.current) break;
 
       // Wait if paused
-      while (paused && !abortRef.current) {
+      while (pausedRef.current && !abortRef.current) {
         await new Promise(r => setTimeout(r, 200));
       }
       if (abortRef.current) break;
@@ -497,8 +501,9 @@ export const OpenClawAgent: React.FC<OpenClawAgentProps> = ({
       // Manual mode: wait for approval
       if (execMode === 'manual' && i > 0) {
         setPendingStepApproval(true);
+        pendingApprovalRef.current = true;
         captureLog('executing', `⏸ Awaiting approval for step ${i + 1}: ${step.name}`, `Command: ${step.command}`);
-        while (pendingStepApproval && !abortRef.current) {
+        while (pendingApprovalRef.current && !abortRef.current) {
           await new Promise(r => setTimeout(r, 200));
         }
         if (abortRef.current) break;
@@ -602,7 +607,7 @@ export const OpenClawAgent: React.FC<OpenClawAgentProps> = ({
     setShowTargetInput(true);
   };
 
-  const handleApproveStep = () => setPendingStepApproval(false);
+  const handleApproveStep = () => { setPendingStepApproval(false); pendingApprovalRef.current = false; };
 
   const handleSkipStep = () => {
     if (!currentPlan) return;
@@ -613,17 +618,20 @@ export const OpenClawAgent: React.FC<OpenClawAgentProps> = ({
         steps: prev.steps.map((s, j) => j === idx ? { ...s, status: 'skipped' } : s),
       } : null);
       setPendingStepApproval(false);
+      pendingApprovalRef.current = false;
     }
   };
+
+  const handlePauseResume = () => { setPaused(p => { pausedRef.current = !p; return !p; }); };
 
   const handleCancelMission = () => {
     abortRef.current = true;
     setCancelled(true);
     setPaused(false);
+    pausedRef.current = false;
     setPendingStepApproval(false);
+    pendingApprovalRef.current = false;
   };
-
-  const handlePauseResume = () => setPaused(p => !p);
 
   const handleClearConsole = () => { setLogs([]); setCurrentPlan(null); setPhase('idle'); setAnalysisReport(''); };
 
