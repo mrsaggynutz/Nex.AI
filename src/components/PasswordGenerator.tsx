@@ -46,7 +46,17 @@ export const PasswordGenerator: React.FC = () => {
   React.useEffect(() => { generate(); }, []);
 
   const copyPassword = () => {
-    navigator.clipboard.writeText(password);
+    navigator.clipboard.writeText(password).catch(() => {
+      // Fallback for clipboard permission denied (common on mobile)
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = password;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch { /* ignore */ }
+    });
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

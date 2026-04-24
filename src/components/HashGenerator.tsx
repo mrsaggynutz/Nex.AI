@@ -45,7 +45,16 @@ export const HashGenerator: React.FC = () => {
   };
 
   const copyHash = (text: string) => {
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(text).catch(() => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch { /* ignore */ }
+    });
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

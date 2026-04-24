@@ -240,9 +240,14 @@ export const ForceRootScripts: React.FC<ForceRootScriptsProps> = ({ onExecute, o
 
   const runScript = useCallback(async (script: RootScript) => {
     setRunning(script.name);
-    const result = await onExecute(script.command);
-    setOutput(prev => ({ ...prev, [script.name]: result || '[No output]' }));
-    setRunning(null);
+    try {
+      const result = await onExecute(script.command);
+      setOutput(prev => ({ ...prev, [script.name]: result || '[No output]' }));
+    } catch (err: any) {
+      setOutput(prev => ({ ...prev, [script.name]: `Error: ${err.message || 'Execution failed'}` }));
+    } finally {
+      setRunning(null);
+    }
   }, [onExecute]);
 
   const TABS: { key: Tab; label: string; icon: React.ReactNode }[] = [

@@ -669,7 +669,16 @@ export const AICodeRunner: React.FC<AICodeRunnerProps> = ({ onExecute, onRunInTe
   };
 
   const copyBlock = (code: string, blockId: string) => {
-    navigator.clipboard.writeText(code);
+    navigator.clipboard.writeText(code).catch(() => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = code;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch { /* ignore */ }
+    });
     setCopiedBlock(blockId);
     setTimeout(() => setCopiedBlock(null), 2000);
   };

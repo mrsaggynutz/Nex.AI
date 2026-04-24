@@ -82,6 +82,7 @@ export const AxiomTerminal: React.FC<TerminalProps> = ({ onExecute, injectedComm
   const terminalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef(false);
+  const connectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
 
@@ -89,7 +90,10 @@ export const AxiomTerminal: React.FC<TerminalProps> = ({ onExecute, injectedComm
     setSessions(prev => prev.map(s => s.id === sessionId ? updater(s) : s));
   }, []);
 
-  useEffect(() => { if (autoConnect && onExecute) performConnect(); }, []);
+  useEffect(() => {
+    if (autoConnect && onExecute) performConnect();
+    return () => { if (connectTimerRef.current) clearTimeout(connectTimerRef.current); };
+  }, []);
 
   useEffect(() => {
     if (injectedCommand && connectedMode === 'live') {
@@ -111,7 +115,8 @@ export const AxiomTerminal: React.FC<TerminalProps> = ({ onExecute, injectedComm
     if (!onExecute) return;
     setIsConnecting(true);
     try { const r = await onExecute('hostname 2>/dev/null || echo "termux"'); setHost(r?.trim().split('\n')[0] || 'termux'); } catch { setHost('termux'); }
-    setTimeout(() => { setIsConnecting(false); setConnectedMode('live'); addOutput(activeSessionId, '[LIVE] Shell bridge active. Auto -y enabled.', 'system'); }, 800);
+    if (connectTimerRef.current) clearTimeout(connectTimerRef.current);
+    connectTimerRef.current = setTimeout(() => { setIsConnecting(false); setConnectedMode('live'); addOutput(activeSessionId, '[LIVE] Shell bridge active. Auto -y enabled.', 'system'); }, 800);
   };
 
   const ghostHint = useMemo(() => {
