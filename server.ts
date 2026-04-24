@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import { createServer as createViteServer } from "vite";
 import { exec, execSync } from "child_process";
 import path from "path";
@@ -346,7 +347,7 @@ async function chatWithZAI(messages: { role: string; content: string }[], modeHi
 /* ================================================================
    FEATURE COUNT
    ================================================================ */
-const FEATURE_COUNT = 36;
+const FEATURE_COUNT = 37;
 
 /* ================================================================
    SERVER
@@ -356,11 +357,12 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  app.use(express.json({ limit: "10mb" }));
+  app.use(cors());
+  app.use(express.json({ limit: "50mb" }));
 
   // Health check
   app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", version: "2.2.0", features: FEATURE_COUNT, hostname, uptime: process.uptime() });
+    res.json({ status: "ok", version: "2.2.1", features: FEATURE_COUNT, hostname, uptime: process.uptime(), arch: os.arch(), platform: os.platform(), totalMem: os.totalmem(), freeMem: os.freemem(), cpus: os.cpus().length });
   });
 
   // ─── AI Config ───
@@ -437,7 +439,7 @@ async function startServer() {
           const usedFallback = result.reasoningSteps.some((s: string) => s.startsWith('Fallback'));
           res.json({
             content: result.content,
-            toolsUsed: [`Nex.AI v2.2`, config.provider.toUpperCase()],
+            toolsUsed: [`Nex.AI v2.2.1`, config.provider.toUpperCase()],
             reasoningSteps: result.reasoningSteps,
             model: result.model,
             _fallback: usedFallback,
@@ -458,7 +460,7 @@ async function startServer() {
 
       if (zaiInstance) {
         const result = await chatWithZAI(finalMessages, modeHint);
-        res.json({ content: result.content, toolsUsed: ['Nex.AI v2.2', 'Z-AI SDK'], reasoningSteps: result.reasoningSteps, model: result.model });
+        res.json({ content: result.content, toolsUsed: ['Nex.AI v2.2.1', 'Z-AI SDK'], reasoningSteps: result.reasoningSteps, model: result.model });
         return;
       }
 
@@ -598,6 +600,22 @@ async function startServer() {
       systemInfo = { arch, kernel, os: osName, hostname };
     } catch { systemInfo = { arch: 'unknown', kernel: 'unknown', os: process.platform, hostname }; }
     res.json({ tools: toolStatus, installed: Object.values(toolStatus).filter(Boolean).length, total: KEY_TOOLS.length, system: systemInfo, timestamp: new Date().toISOString() });
+  });
+
+  // ─── ADB Device Discovery ───
+
+  app.get("/api/devices/list", (_req, res) => {
+    try {
+      const devices = execSync('adb devices 2>/dev/null', { encoding: 'utf8', timeout: 5000 }).trim();
+      const lines = devices.split('\n').filter(l => l.includes('\t'));
+      const deviceList = lines.map(l => {
+        const [id, status] = l.split('\t');
+        return { id: id.trim(), status: status.trim() || 'unknown' };
+      });
+      res.json({ devices: deviceList, count: deviceList.length, raw: devices });
+    } catch {
+      res.json({ devices: [], count: 0, error: 'ADB not available. Install via: pkg install android-tools' });
+    }
   });
 
   // ─── Tool Install ───
@@ -800,7 +818,7 @@ async function startServer() {
 
   if (process.env.NODE_ENV === 'production') {
     // Production: simple SPA fallback — serve index.html for all non-API routes
-    app.get('*', (_req, res) => {
+    app.get('/{*splat}', (_req, res) => {
       const indexPath = path.join(__dirname, 'dist', 'index.html');
       if (fs.existsSync(indexPath)) res.sendFile(indexPath);
       else res.status(404).send('Nex.AI — index.html not found. Run: npm run build');
@@ -844,12 +862,12 @@ async function startServer() {
       }
       if (lanIP !== 'localhost') break;
     }
-    console.log(`\n  Nex.AI v2.2 → http://${HOST === '0.0.0.0' ? lanIP : HOST}:${PORT}`);
+    console.log(`\n  Nex.AI v2.2.1 → http://${HOST === '0.0.0.0' ? lanIP : HOST}:${PORT}`);
     if (HOST === '0.0.0.0' && lanIP !== 'localhost') {
       console.log(`  LAN access  → http://${lanIP}:${PORT}  (other devices on same WiFi)`);
     }
     console.log(`  Local only  → http://localhost:${PORT}`);
-    console.log(`  ${FEATURE_COUNT} features loaded\n  Open Claw Agent active\n`);
+    console.log(`  ${FEATURE_COUNT} features loaded\n  CORS enabled — multi-device PWA access active\n`);
   });
 }
 
