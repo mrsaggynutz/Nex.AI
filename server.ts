@@ -916,8 +916,7 @@ async function startServer() {
     } catch (e: any) { res.status(502).json({ error: e.message }); }
   });
 
-  // ─── OpenClaw Agent API ───
-
+  // ─── OpenClaw Autonomous Agent API ───
   app.use('/api/openclaw', openclawRoutes);
 
   // ─── Static files + SPA fallback ───
