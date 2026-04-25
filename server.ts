@@ -348,7 +348,7 @@ async function chatWithZAI(messages: { role: string; content: string }[], modeHi
 /* ================================================================
    FEATURE COUNT
    ================================================================ */
-const FEATURE_COUNT = 38;
+const FEATURE_COUNT = 39;
 
 /* ================================================================
    SERVER
@@ -914,6 +914,81 @@ async function startServer() {
       const result = await chatWithAPI(config, messages, 'OPEN CLAW RESEARCH');
       res.json({ topic, research: result.content, model: result.model });
     } catch (e: any) { res.status(502).json({ error: e.message }); }
+  });
+
+  // ─── Sentinel-X Telemetry ───
+
+  app.get("/api/sentinel/telemetry", (_req, res) => {
+    try {
+      const totalMem = os.totalmem();
+      const freeMem = os.freemem();
+      const usedMem = totalMem - freeMem;
+      const cpus = os.cpus();
+      let cpuPercent = 0;
+      // Simple CPU load estimation from load average
+      const loadAvg = os.loadavg();
+      if (cpus.length > 0) {
+        cpuPercent = Math.min(100, Math.round((loadAvg[0] / cpus.length) * 100));
+      }
+
+      // Disk info
+      let diskUsed = 0, diskTotal = 0;
+      try {
+        const df = execSync('df -k / 2>/dev/null | tail -1', { encoding: 'utf8' }).trim().split(/\s+/);
+        if (df.length >= 3) { diskUsed = parseInt(df[2]) * 1024; diskTotal = parseInt(df[1]) * 1024; }
+      } catch { /* ignore */ }
+
+      // Process count
+      let processes = 0;
+      try { processes = parseInt(execSync('ps aux 2>/dev/null | wc -l || ps -ef | wc -l', { encoding: 'utf8' }).trim()) || 0; } catch { /* ignore */ }
+
+      // Thermal (Android)
+      let thermal: number | undefined;
+      try {
+        const thermalRaw = execSync('cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
+        if (thermalRaw) {
+          const tempVal = parseFloat(thermalRaw);
+          thermal = tempVal > 1000 ? Math.round(tempVal / 10) : Math.round(tempVal); // Some kernels report in millidegrees
+        }
+      } catch { /* ignore */ }
+
+      // Battery (Termux)
+      let battery: { level: number; charging: boolean } | undefined;
+      try {
+        const batLevel = execSync('cat /sys/class/power_supply/battery/capacity 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
+        const batStatus = execSync('cat /sys/class/power_supply/battery/status 2>/dev/null || echo ""', { encoding: 'utf8' }).trim();
+        if (batLevel) {
+          battery = { level: parseInt(batLevel), charging: batStatus.toLowerCase() === 'charging' };
+        }
+      } catch { /* ignore */ }
+
+      // Network interface
+      let network: { interface: string; ip: string; rx: number; tx: number } | undefined;
+      try {
+        const iface = execSync("ip route get 1.1.1.1 2>/dev/null | head -1 | grep -oP 'dev \\K\\S+' || echo 'wlan0'", { encoding: 'utf8' }).trim();
+        const ip = execSync(`ip -4 addr show ${iface} 2>/dev/null | grep -oP 'inet \\K[\\d.]+' || echo '0.0.0.0'`, { encoding: 'utf8' }).trim();
+        const rx = parseInt(execSync(`cat /proc/net/dev 2>/dev/null | grep ${iface} | awk '{print $2}' || echo '0'`, { encoding: 'utf8' }).trim()) || 0;
+        const tx = parseInt(execSync(`cat /proc/net/dev 2>/dev/null | grep ${iface} | awk '{print $10}' || echo '0'`, { encoding: 'utf8' }).trim()) || 0;
+        network = { interface: iface, ip, rx, tx };
+      } catch { /* ignore */ }
+
+      res.json({
+        cpu: cpuPercent,
+        memory: { used: usedMem, total: totalMem, percent: Math.round((usedMem / totalMem) * 100) },
+        disk: { used: diskUsed, total: diskTotal, percent: diskTotal > 0 ? Math.round((diskUsed / diskTotal) * 100) : 0 },
+        processes,
+        uptime: process.uptime(),
+        hostname,
+        arch: os.arch(),
+        platform: os.platform(),
+        thermal,
+        battery,
+        network,
+        loadAvg: loadAvg.map(v => parseFloat(v.toFixed(2))),
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
   // ─── OpenClaw Autonomous Agent API ───

@@ -17,6 +17,7 @@ import { MasterArsenal } from './components/MasterArsenal';
 import { AxiomCoreAI } from './components/AxiomCoreAI';
 import { OpenClawAgent } from './components/OpenClawAgent';
 import { AISettings } from './components/AISettings';
+import { SentinelXOverlay } from './components/SentinelXOverlay';
 import { ForceRootScripts } from './components/ForceRootScripts';
 import { AIExploitEngine } from './components/AIExploitEngine';
 import { AICodeRunner } from './components/AICodeRunner';
@@ -32,10 +33,10 @@ import {
   Terminal, Wrench, Bot, Activity, MoreHorizontal,
   KeyRound, Hash, Globe, ShieldCheck, ChevronLeft,
   Crosshair, Cpu, Settings, Download, X, Sparkles, Zap,
-  Siren
+  Siren, Eye
 } from 'lucide-react';
 
-export type PanelMode = 'terminal' | 'tools' | 'chat' | 'arsenal' | 'core-ai' | 'open-claw' | 'ai-settings'
+export type PanelMode = 'terminal' | 'tools' | 'chat' | 'arsenal' | 'core-ai' | 'open-claw' | 'sentinel' | 'ai-settings'
   | 'sysmon' | 'password' | 'hash' | 'dns' | 'toolstatus'
   | 'force-root' | 'exploit-engine' | 'ai-runner'
   | 'file-browser' | 'code-editor' | 'git-panel' | 'live-preview';
@@ -44,6 +45,7 @@ const MAIN_TABS: { mode: PanelMode; label: string; icon: React.ReactNode }[] = [
   { mode: 'terminal', label: 'Terminal', icon: <Terminal size={20} /> },
   { mode: 'tools', label: 'Tools', icon: <Wrench size={20} /> },
   { mode: 'open-claw', label: 'CLAW', icon: <Siren size={20} /> },
+  { mode: 'sentinel', label: 'SENTINEL', icon: <Eye size={20} /> },
   { mode: 'arsenal', label: 'Arsenal', icon: <Crosshair size={20} /> },
   { mode: 'core-ai', label: 'CORE AI', icon: <Cpu size={20} /> },
   { mode: 'chat', label: 'AI', icon: <Bot size={20} /> },
@@ -63,7 +65,7 @@ const ARSENAL_SUBPANELS: PanelMode[] = [
   'file-browser', 'code-editor', 'git-panel', 'live-preview'
 ];
 
-const FEATURE_COUNT = 38;
+const FEATURE_COUNT = 39;
 
 /* PWA Install Prompt */
 let deferredPrompt: BeforeInstallPromptEvent | null = null;
@@ -214,7 +216,7 @@ export default function App() {
     return <BootSequence onComplete={() => setBooting(false)} />;
   }
 
-  const isMainTab = ['terminal', 'tools', 'arsenal', 'core-ai', 'open-claw', 'chat'].includes(activePanel);
+  const isMainTab = ['terminal', 'tools', 'arsenal', 'core-ai', 'open-claw', 'sentinel', 'chat'].includes(activePanel);
   const isArsenalSub = ARSENAL_SUBPANELS.includes(activePanel);
 
   const renderPanel = () => {
@@ -225,6 +227,7 @@ export default function App() {
       case 'arsenal': return <MasterArsenal onNavigate={navigateToPanel} onRunInTerminal={handleRunInTerminal} onExecuteCommand={(cmd: string) => () => executeCommand(cmd)} />;
       case 'core-ai': return <AxiomCoreAI onSendMessage={handleSendMessage} onExecuteCommand={executeCommand} onRunInTerminal={handleRunInTerminal} />;
       case 'open-claw': return <OpenClawAgent onExecuteCommand={executeCommand} onRunInTerminal={handleRunInTerminal} />;
+      case 'sentinel': return <SentinelXOverlay onExecuteCommand={executeCommand} onRunInTerminal={handleRunInTerminal} />;
       case 'ai-settings': return <AISettings />;
       case 'toolstatus': return <ToolStatusDashboard onRunInTerminal={handleRunInTerminal} />;
       case 'sysmon': return <SystemMonitor />;
@@ -273,7 +276,7 @@ export default function App() {
             <button onClick={() => setZoom(prev => Math.min(2.0, Math.round((prev + 0.1) * 10) / 10))} className="px-2 py-1 text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors text-[10px] font-black">+</button>
           </div>
           <span className="md:hidden text-[9px] font-black uppercase tracking-wider text-zinc-500 truncate">
-            {activePanel === 'core-ai' ? 'CORE AI' : activePanel === 'open-claw' ? 'OPEN CLAW' : activePanel === 'arsenal' ? 'ARSENAL' : activePanel === 'terminal' ? 'PTY' : activePanel === 'tools' ? 'TOOLS' : activePanel === 'chat' ? 'AI' : activePanel.replace(/-/g, ' ').toUpperCase().slice(0, 12)}
+            {activePanel === 'core-ai' ? 'CORE AI' : activePanel === 'open-claw' ? 'OPEN CLAW' : activePanel === 'sentinel' ? 'SENTINEL-X' : activePanel === 'arsenal' ? 'ARSENAL' : activePanel === 'terminal' ? 'PTY' : activePanel === 'tools' ? 'TOOLS' : activePanel === 'chat' ? 'AI' : activePanel.replace(/-/g, ' ').toUpperCase().slice(0, 12)}
           </span>
         </div>
       </div>
